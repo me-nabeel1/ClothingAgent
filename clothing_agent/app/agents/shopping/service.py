@@ -144,7 +144,7 @@ class ShoppingAgent:
             )
             fallback_result = await self._client.search_products(fallback_request)
             result.products = fallback_result.products
-            result.relaxed_constraints.append("all")
+            result.relaxed_constraints.append("fallback_to_alternatives")
 
         assert isinstance(result, ProductSearchResponse)
         audit.info(
