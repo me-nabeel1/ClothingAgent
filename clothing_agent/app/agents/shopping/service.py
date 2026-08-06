@@ -394,12 +394,12 @@ class ShoppingAgent:
         if not preferences.category:
             if preferences.occasion or "outfit" in text:
                 return (
-                    "Let’s narrow it quickly—shirts, trousers, activewear, or a complete outfit?",
-                    ["Shirts", "Trousers", "Activewear", "Complete outfit"],
+                    "Let’s narrow it quickly—shirts, trousers, or activewear?",
+                    ["Shirts", "Trousers", "Activewear"],
                 )
             return (
-                "What should I pull first—shirts, trousers, activewear, or a complete outfit?",
-                ["Shirts", "Trousers", "Activewear", "Complete outfit"],
+                "What should I pull first—shirts, trousers, or activewear?",
+                ["Shirts", "Trousers", "Activewear"],
             )
 
         # Ask one purpose question only on the first broad category request.
