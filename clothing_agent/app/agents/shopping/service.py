@@ -36,7 +36,12 @@ CATEGORIES = {
     "shorts": "shorts", "tee": "t-shirts", "tshirt": "t-shirts",
     "t-shirt": "t-shirts", "hoodie": "hoodies", "jacket": "jackets",
     "activewear": "active wear", "gymwear": "active wear",
+    "pajama": "pajamas", "pajamas": "pajamas", "sweatpants": "sweatpants",
+    "jogger": "joggers", "joggers": "joggers", "sweater": "sweaters",
+    "sweaters": "sweaters", "coat": "coats", "coats": "coats"
 }
+UPPER_BODY_CATEGORIES = {"shirts", "t-shirts", "hoodies", "jackets", "sweaters", "coats"}
+LOWER_BODY_CATEGORIES = {"trousers", "pants", "jeans", "shorts", "active wear", "pajamas", "sweatpants", "joggers"}
 PURPOSES = {
     "casual": "casual", "everyday": "everyday", "office": "office",
     "formal": "formal", "gym": "gym", "workout": "gym",
@@ -139,8 +144,16 @@ class ShoppingAgent:
         result = await self._client.search_products(search_request)
         
         if not result.products:
+            fallback_category = None
+            if search_request.category:
+                if search_request.category in LOWER_BODY_CATEGORIES:
+                    fallback_category = "trousers"
+                elif search_request.category in UPPER_BODY_CATEGORIES:
+                    fallback_category = "t-shirts"
+                    
             fallback_request = ProductSearchRequest(
                 limit=self._config.displayed_product_limit,
+                category=fallback_category
             )
             fallback_result = await self._client.search_products(fallback_request)
             result.products = fallback_result.products
