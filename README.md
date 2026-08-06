@@ -65,30 +65,14 @@ The LLM client uses Groq's OpenAI-compatible `/chat/completions` endpoint.
 Structured routing and extraction use JSON-object mode followed by Pydantic
 validation, keeping the integration small and compatible with optional fields.
 
-## 2. Start the clothing application
+## 2. Start the unified backend
 
-Open terminal 1 at the workspace root and activate the same `.venv`:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --app-dir clothing_app --reload --reload-dir clothing_app --port 8100
-```
-
-Verify:
-
-```text
-http://127.0.0.1:8100/health
-http://127.0.0.1:8100/health/ready
-http://127.0.0.1:8100/docs
-```
-
-## 3. Start the clothing agent
-
-Open terminal 2 at the workspace root and activate the same `.venv`:
+The Inventory app and AI agent are now consolidated into a single process.
+Open terminal 1 at the workspace root and activate the `.venv`:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --app-dir clothing_agent --reload --reload-dir clothing_agent --port 8000
+uvicorn app.main:app --app-dir clothing_agent --reload --port 8000
 ```
 
 Verify:
@@ -99,13 +83,13 @@ http://127.0.0.1:8000/health/ready
 http://127.0.0.1:8000/docs
 ```
 
-`/health/ready` confirms the agent can reach the clothing application. It reports
+`/health/ready` confirms the agent and database are connected. It reports
 whether the LLM is configured or whether the local fallback is active.
 
 
-## 4. Start the frontend
+## 3. Start the frontend
 
-Open terminal 3 at the workspace root:
+Open terminal 2 at the workspace root:
 
 ```powershell
 npm install --prefix frontend
@@ -151,28 +135,19 @@ Agent: Good pick—... Want me to check stock or add it to your cart?
 
 ## Agent APIs
 
-Start a conversation:
+The agent API has been consolidated into a single endpoint for the MVP:
 
 ```http
-POST /api/v1/conversations
-```
-
-Send a message:
-
-```http
-POST /api/v1/conversations/{conversation_id}/messages
+POST /api/v1/chat
 Content-Type: application/json
 
 {
-  "message": "Show me comfortable black trousers in size 34 under PKR 5000."
+  "message": "Show me comfortable black trousers in size 34 under PKR 5000.",
+  "conversation_id": "optional-uuid-here"
 }
 ```
 
-Get the conversation:
-
-```http
-GET /api/v1/conversations/{conversation_id}
-```
+If `conversation_id` is omitted, a new conversation is automatically created.
 
 ## Supported behavior
 
