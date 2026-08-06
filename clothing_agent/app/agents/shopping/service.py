@@ -32,7 +32,7 @@ COLORS = {
 }
 CATEGORIES = {
     "shirt": "shirts", "shirts": "shirts", "trouser": "trousers",
-    "trousers": "trousers", "pants": "pants", "jeans": "jeans",
+    "trousers": "trousers", "pants": "pants", "pant": "pants", "jeans": "jeans",
     "shorts": "shorts", "tee": "t-shirts", "tshirt": "t-shirts",
     "t-shirt": "t-shirts", "hoodie": "hoodies", "jacket": "jackets",
     "activewear": "active wear", "gymwear": "active wear",
