@@ -169,6 +169,9 @@ class ProductImage(Base):
         ForeignKey(f"{SCHEMA}.products.product_id", ondelete="CASCADE"),
         nullable=False,
     )
+    color_id: Mapped[int | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.colors.color_id", ondelete="CASCADE"),
+    )
     image_path: Mapped[str] = mapped_column(Text, nullable=False)
     alt_text: Mapped[str | None] = mapped_column(String(250))
     display_order: Mapped[int] = mapped_column(Integer, nullable=False)
