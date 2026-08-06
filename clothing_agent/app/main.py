@@ -20,6 +20,14 @@ from app.core.observability import (
 )
 from app.core.chat import router as conversation_router
 
+import sys
+from pathlib import Path
+workspace_root = Path(__file__).resolve().parent.parent.parent
+if str(workspace_root) not in sys.path:
+    sys.path.insert(0, str(workspace_root))
+
+from clothing_app.app.main import app as clothing_app_instance
+
 config = get_config()
 configure_logging(config)
 logger = logging.getLogger(__name__)
@@ -52,6 +60,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(conversation_router, prefix=config.api_prefix)
+app.mount("/clothing-app", clothing_app_instance)
 
 
 @app.middleware("http")
