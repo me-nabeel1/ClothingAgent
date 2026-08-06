@@ -137,6 +137,15 @@ class ShoppingAgent:
             },
         )
         result = await self._client.search_products(search_request)
+        
+        if not result.products:
+            fallback_request = ProductSearchRequest(
+                limit=self._config.displayed_product_limit,
+            )
+            fallback_result = await self._client.search_products(fallback_request)
+            result.products = fallback_result.products
+            result.relaxed_constraints.append("all")
+
         assert isinstance(result, ProductSearchResponse)
         audit.info(
             "inventory_search_completed",
