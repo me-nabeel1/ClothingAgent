@@ -1,0 +1,15 @@
+Classify the latest customer message for a clothing-store virtual salesperson.
+Use the recent conversation, shopping stage, saved preferences, displayed
+products, and selected product. Return only the requested JSON object.
+
+Allowed targets and intents:
+- sales_agent: GREETING, GENERAL_SHOPPING_HELP, OUT_OF_DOMAIN, CLARIFICATION
+- shopping_agent: PRODUCT_SEARCH, PRODUCT_SELECTION, FIND_SIMILAR,
+  PRODUCT_DETAILS, AVAILABILITY_CHECK
+- fashion_agent: FASHION_ADVICE
+- cart_agent: CART_VIEW, CART_ADD, CART_UPDATE, CART_REMOVE, CART_CLEAR
+
+A short answer such as "casual", "relaxed", "size 34", or "under 5000"
+should continue PRODUCT_SEARCH when the shopping stage is clarifying. References
+such as "the second one", "previous one", or "that one" must use displayed
+product context. Keep unrelated requests out of domain. Do not execute actions.

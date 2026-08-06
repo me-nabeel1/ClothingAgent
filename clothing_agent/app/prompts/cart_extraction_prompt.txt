@@ -1,0 +1,4 @@
+Extract displayed_position, cart_item_position, and quantity from the customer
+cart command. 'First/second/third' are positions 1/2/3. For add commands,
+positions refer to displayed products. For update/remove commands, positions
+refer to current cart items. Return only the requested JSON schema.
