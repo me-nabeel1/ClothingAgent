@@ -12,7 +12,7 @@ from app.core.config import AgentConfig, get_config
 from app.core.chat import OrchestratorService
 from app.core.conversation import ConversationRepository, ConversationService
 from app.llm.client import LLMClient
-from app.core.monolithic_agent import MonolithicAgentService
+from app.llm.agent import MonolithicAgentService
 
 
 class AppContainer:
@@ -26,11 +26,11 @@ class AppContainer:
 
         self.conversations = ConversationService(ConversationRepository())
 
-        self.monolithic_agent = MonolithicAgentService(self.llm, self.clothing_app, config)
+        self.agent = MonolithicAgentService(self.llm, self.clothing_app, config)
         
         self.orchestrator = OrchestratorService(
             self.conversations,
-            self.monolithic_agent,
+            self.agent,
             config,
         )
 

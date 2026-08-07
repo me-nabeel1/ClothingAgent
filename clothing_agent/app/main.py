@@ -99,8 +99,7 @@ async def health() -> dict[str, object]:
     return {
         "status": "ok",
         "service": "clothing-agent",
-        "agents": container.agents.names(),
-        "tools": container.tools.names(),
+        "agent": "monolithic",
         "llm_configured": container.llm.configured,
     }
 

@@ -247,14 +247,13 @@ class CatalogRepository:
         primary_image = (
             select(ProductImage.image_path)
             .where(
-                ProductImage.product_id == Product.product_id,
-                ProductImage.is_primary.is_(True),
-                or_(
-                    ProductImage.color_id == ProductVariant.color_id,
-                    ProductImage.color_id.is_(None)
-                )
+                ProductImage.product_id == Product.product_id
             )
-            .order_by((ProductImage.color_id == ProductVariant.color_id).desc(), ProductImage.display_order)
+            .order_by(
+                (ProductImage.color_id == ProductVariant.color_id).desc(),
+                ProductImage.is_primary.desc(),
+                ProductImage.display_order
+            )
             .limit(1)
             .scalar_subquery()
         )

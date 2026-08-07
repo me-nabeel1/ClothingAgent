@@ -1,7 +1,5 @@
 """Conversation API and turn orchestration."""
 
-from __future__ import annotations
-
 import logging
 from time import perf_counter
 from uuid import UUID
@@ -9,9 +7,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.clients.clothing_app.schemas import CartView, ProductOption
 from app.core.config import AgentConfig
 from app.core.conversation import ConversationService, ConversationView
-from app.core.monolithic_agent import MonolithicAgentService
+from app.llm.agent import MonolithicAgentService
 
 logger = logging.getLogger(__name__)
 audit = logging.getLogger("sales_audit")
@@ -38,12 +37,13 @@ class OrchestratorService:
     def __init__(
         self,
         conversations: ConversationService,
-        monolithic_agent: MonolithicAgentService,
+        agent: MonolithicAgentService,
         config: AgentConfig,
     ) -> None:
         self._conversations = conversations
-        self._agent = monolithic_agent
+        self._agent = agent
         self._config = config
+        ChatTurnResponse.model_rebuild()
 
     async def handle_chat(self, request: ChatRequest) -> ChatTurnResponse:
         started = perf_counter()
@@ -116,7 +116,7 @@ class OrchestratorService:
                     limit=self._config.displayed_product_limit,
                 )
 
-            state.active_agent = "monolithic_agent"
+            state.active_agent = "agent"
             state.current_intent = "auto"
             await self._conversations.append_message(
                 state, role="assistant", content=reply

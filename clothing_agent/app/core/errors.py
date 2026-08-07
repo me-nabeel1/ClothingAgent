@@ -33,8 +33,14 @@ class AgentNotFoundError(AgentError):
 class DependencyUnavailableError(AgentError):
     """Raised when the clothing application or LLM cannot be reached."""
 
-    def __init__(self, message: str, *, code: str = "DEPENDENCY_UNAVAILABLE") -> None:
-        super().__init__(message, code=code, status_code=503)
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "DEPENDENCY_UNAVAILABLE",
+        details: dict[str, Any] | None = None
+    ) -> None:
+        super().__init__(message, code=code, status_code=503, details=details)
 
 
 class InvalidAgentRequestError(AgentError):

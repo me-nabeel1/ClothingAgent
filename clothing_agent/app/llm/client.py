@@ -132,9 +132,20 @@ class LLMClient:
             raise DependencyUnavailableError(
                 "The LLM API key is not configured.", code="LLM_NOT_CONFIGURED"
             )
+        formatted_messages = []
+        for msg in messages:
+            m = {"role": msg.role, "content": msg.content or ""}
+            if msg.name is not None:
+                m["name"] = msg.name
+            if msg.tool_calls is not None:
+                m["tool_calls"] = msg.tool_calls
+            if msg.tool_call_id is not None:
+                m["tool_call_id"] = msg.tool_call_id
+            formatted_messages.append(m)
+
         payload: dict[str, object] = {
             "model": self._config.llm_model,
-            "messages": [message.model_dump(exclude_none=True) for message in messages],
+            "messages": formatted_messages,
             "temperature": self._config.llm_temperature if temperature is None else temperature,
             "max_tokens": max_tokens or self._config.llm_max_tokens,
         }
@@ -156,6 +167,13 @@ class LLMClient:
             )
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as exc:
+            import logging
+            logging.getLogger(__name__).error(f"LLM API Error: {exc.response.text}")
+            raise DependencyUnavailableError(
+                "The LLM service is currently unavailable.",
+                details={"error": f"{exc.response.status_code} from {self._config.llm_api_base}"},
+            ) from exc
         except (httpx.HTTPError, ValueError) as exc:
             raise DependencyUnavailableError(
                 "The LLM service is currently unavailable.",

@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Any
 from uuid import UUID
+import pathlib
 
 from app.clients.clothing_app.client import ClothingAppClient
 from app.clients.clothing_app.schemas import ProductSearchRequest, AddCartItemRequest
@@ -17,7 +18,8 @@ class MonolithicAgentService:
         self._clothing_app = clothing_app
         self._config = config
         
-        with open("app/prompts/monolithic_prompt.txt", encoding="utf-8") as f:
+        prompt_path = pathlib.Path(__file__).parent.parent / "prompts" / "prompt.txt"
+        with open(prompt_path, encoding="utf-8") as f:
             self._prompt = f.read()
             
     def _get_tools(self) -> list[dict[str, Any]]:
@@ -34,8 +36,8 @@ class MonolithicAgentService:
                             "category": {"type": "string"},
                             "colors": {"type": "array", "items": {"type": "string"}},
                             "sizes": {"type": "array", "items": {"type": "string"}},
-                            "minimum_price": {"type": "number"},
-                            "maximum_price": {"type": "number"},
+                            "minimum_price": {"type": "string"},
+                            "maximum_price": {"type": "string"},
                             "semantic_tags": {"type": "array", "items": {"type": "string"}}
                         }
                     }
