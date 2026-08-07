@@ -25,24 +25,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Manage agent resources and the clothing app subprocess."""
-    import subprocess
-    import sys
-    from pathlib import Path
-
-    workspace_root = Path(__file__).resolve().parent.parent.parent
-    clothing_app_dir = workspace_root / "clothing_app"
-    
-    app_process = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app", "--app-dir", str(clothing_app_dir), "--port", "8100"]
-    )
-
+    """Manage agent resources during application startup and shutdown."""
     logger.info("agent_started", extra={"event": "agent_started"})
     try:
         yield
     finally:
-        app_process.terminate()
-        app_process.wait()
         await get_container().close()
         logger.info("agent_stopped", extra={"event": "agent_stopped"})
 

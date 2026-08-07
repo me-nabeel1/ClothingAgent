@@ -36,76 +36,49 @@ React frontend :5173
 The clothing agent has no PostgreSQL driver usage, ORM models, or direct database
 queries.
 
-## 1. Create the unified environment
+## 1. Configure the Environment
 
-Run these commands from the workspace root:
+Copy the Docker environment template:
 
 ```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Edit `.env` and set the real PostgreSQL password:
+Add your Groq key in `.env` to enable full LLM routing and response generation:
 
 ```env
-CLOTHING_APP_DATABASE_URL=postgresql+asyncpg://postgres:YOUR_PASSWORD@127.0.0.1:5432/ClothingAppDummyDB
-```
-
-Add your Groq key to enable full LLM routing and response generation:
-
-```env
+GROQ_API_KEY=gsk_your_key
 CLOTHING_AGENT_LLM_API_BASE=https://api.groq.com/openai/v1
-CLOTHING_AGENT_LLM_API_KEY=gsk_your_key
 CLOTHING_AGENT_LLM_MODEL=llama-3.3-70b-versatile
 ```
 
 The LLM client uses Groq's OpenAI-compatible `/chat/completions` endpoint.
-Structured routing and extraction use JSON-object mode followed by Pydantic
-validation, keeping the integration small and compatible with optional fields.
 
-## 2. Start the unified backend
+## 2. Start the Docker Stack
 
-The Inventory app and AI agent are now consolidated into a single process.
-Open terminal 1 at the workspace root and activate the `.venv`:
+The Inventory App, AI Agent, and Frontend are fully Dockerized and orchestrated via `docker-compose`.
 
-```powershell
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --app-dir clothing_agent --reload --port 8000
-```
-
-Verify:
-
-```text
-http://127.0.0.1:8000/health
-http://127.0.0.1:8000/health/ready
-http://127.0.0.1:8000/docs
-```
-
-`/health/ready` confirms the agent and database are connected. It reports
-whether the LLM is configured or whether the local fallback is active.
-
-
-## 3. Start the frontend
-
-Open terminal 2 at the workspace root:
+Run this command from the workspace root:
 
 ```powershell
-npm install --prefix frontend
-npm run frontend:dev
+docker-compose up -d --build
 ```
 
-Open:
+Verify the services are running:
 
-```text
-http://localhost:5173
+```powershell
+docker-compose ps
 ```
 
-The frontend reads its URLs from the same root `.env` file. Product-card and
-cart controls send natural-language commands through the agent, so the demo
-exercises routing, specialist agents, tools, application APIs, and live local
-inventory end to end.
+The services will be available at:
+- **Frontend**: http://localhost:8080
+- **Agent API**: http://localhost:8000/docs
+- **Clothing App API**: http://localhost:8100/docs
+
+To stop the stack, run:
+```powershell
+docker-compose down
+```
 
 ## Guided sales flow
 
