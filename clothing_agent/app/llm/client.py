@@ -169,7 +169,54 @@ class LLMClient:
             return response.json()
         except httpx.HTTPStatusError as exc:
             import logging
-            logging.getLogger(__name__).error(f"LLM API Error: {exc.response.text}")
+            logger = logging.getLogger(__name__)
+            
+            try:
+                error_data = exc.response.json().get("error", {})
+                if error_data.get("code") == "tool_use_failed" and "failed_generation" in error_data:
+                    gen = error_data["failed_generation"]
+                    import re
+                    import uuid
+                    
+                    match = re.search(r"<function=([a-zA-Z0-9_]+)\s*(\{.*?\})\s*(?:>)?\s*</function>", gen, re.DOTALL)
+                    if match:
+                        text_before = gen[:match.start()].strip()
+                        tool_name = match.group(1)
+                        tool_args = match.group(2)
+                        
+                        logger.info("Recovered from malformed LLM tool generation.")
+                        return {
+                            "choices": [{
+                                "message": {
+                                    "role": "assistant",
+                                    "content": text_before if text_before else None,
+                                    "tool_calls": [{
+                                        "id": f"call_{uuid.uuid4().hex[:8]}",
+                                        "type": "function",
+                                        "function": {
+                                            "name": tool_name,
+                                            "arguments": tool_args
+                                        }
+                                    }]
+                                }
+                            }]
+                        }
+                    else:
+                        text_only = re.sub(r"<function=.*?</function>", "", gen, flags=re.DOTALL).strip()
+                        if text_only:
+                            logger.info("Recovered conversational text from malformed LLM output.")
+                            return {
+                                "choices": [{
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": text_only
+                                    }
+                                }]
+                            }
+            except Exception:
+                pass
+
+            logger.error(f"LLM API Error: {exc.response.text}")
             raise DependencyUnavailableError(
                 "The LLM service is currently unavailable.",
                 details={"error": f"{exc.response.status_code} from {self._config.llm_api_base}"},

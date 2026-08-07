@@ -1,14 +1,12 @@
-import { Mic, SendHorizontal, Sparkles, X } from "lucide-react";
+import { SendHorizontal, Sparkles } from "lucide-react";
 import { FormEvent, KeyboardEvent, useState } from "react";
 
 interface ComposerProps {
   disabled: boolean;
-  isAudioMode?: boolean;
-  onExitAudio?: () => void;
   onSend: (message: string) => void;
 }
 
-export function Composer({ disabled, isAudioMode, onExitAudio, onSend }: ComposerProps) {
+export function Composer({ disabled, onSend }: ComposerProps) {
   const [value, setValue] = useState("");
 
   const submit = () => {
@@ -30,20 +28,6 @@ export function Composer({ disabled, isAudioMode, onExitAudio, onSend }: Compose
     }
   };
 
-  if (isAudioMode) {
-    return (
-      <div className="audio-mode-panel">
-        <div className="pulse-mic">
-          <Mic size={20} />
-          <span>Listening...</span>
-        </div>
-        <button type="button" className="button button--ghost" onClick={onExitAudio}>
-          <X size={16} /> Exit Audio Mode
-        </button>
-      </div>
-    );
-  }
-
   return (
     <form className="composer" onSubmit={handleSubmit}>
       <div className="composer__field">
@@ -52,12 +36,17 @@ export function Composer({ disabled, isAudioMode, onExitAudio, onSend }: Compose
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask for an outfit, color match, size, budget…"
+          placeholder="Tell me what you're shopping for…"
           rows={1}
           disabled={disabled}
           aria-label="Message the shopping assistant"
         />
-        <button type="submit" className="send-btn" disabled={disabled || !value.trim()} aria-label="Send message">
+        <button
+          type="submit"
+          className="send-btn"
+          disabled={disabled || !value.trim()}
+          aria-label="Send message"
+        >
           <SendHorizontal size={19} />
         </button>
       </div>

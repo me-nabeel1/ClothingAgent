@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.clients.clothing_app.schemas import CartView, ProductOption
 from app.core.config import AgentConfig
-from app.core.conversation import ConversationService, ConversationView
+from app.core.conversation import ConversationService
 from app.llm.agent import MonolithicAgentService
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 class ChatRequest(BaseModel):
-    message: str | None = Field(default=None, max_length=1200)
+    message: str = Field(min_length=1, max_length=1200)
     conversation_id: UUID | None = None
 
 
@@ -47,8 +47,11 @@ class OrchestratorService:
 
     async def handle_chat(self, request: ChatRequest) -> ChatTurnResponse:
         started = perf_counter()
+        message = request.message.strip()
 
-        if not request.conversation_id:
+        if request.conversation_id:
+            state = await self._conversations.get(request.conversation_id)
+        else:
             state = await self._conversations.create()
             audit.info(
                 "conversation_started",
@@ -57,43 +60,8 @@ class OrchestratorService:
                     "conversation_id": str(state.conversation_id),
                 },
             )
-            if not request.message:
-                await self._conversations.append_message(
-                    state, role="assistant", content="Hi there! I am your personal shopping concierge. How can I help you today?"
-                )
-                state = await self._conversations.save(state)
-                assistant_message = state.messages[-1]
-                return ChatTurnResponse(
-                    conversation_id=state.conversation_id,
-                    message_id=assistant_message.message_id,
-                    reply=assistant_message.content,
-                    active_agent="sales",
-                    intent="greeting",
-                )
-            conversation_id = state.conversation_id
-        else:
-            conversation_id = request.conversation_id
-            state = await self._conversations.get(conversation_id)
 
-        message = request.message or ""
-        if not message.strip():
-            if not state.messages:
-                await self._conversations.append_message(
-                    state, role="assistant", content="Hi there! I am your personal shopping concierge. How can I help you today?"
-                )
-                state = await self._conversations.save(state)
-            
-            assistant_message = state.messages[-1]
-            return ChatTurnResponse(
-                conversation_id=state.conversation_id,
-                message_id=assistant_message.message_id,
-                reply=assistant_message.content,
-                active_agent="sales",
-                intent="greeting",
-            )
-
-
-
+        conversation_id = state.conversation_id
         audit.info(
             "turn_started",
             extra={
@@ -104,9 +72,9 @@ class OrchestratorService:
                 "message_preview": message[:160],
             },
         )
+
         try:
             await self._conversations.append_message(state, role="user", content=message)
-            
             reply, products, cart = await self._agent.handle_turn(message, state)
 
             if products:
@@ -116,13 +84,12 @@ class OrchestratorService:
                     limit=self._config.displayed_product_limit,
                 )
 
-            state.active_agent = "agent"
-            state.current_intent = "auto"
-            await self._conversations.append_message(
-                state, role="assistant", content=reply
-            )
+            state.active_agent = "sales_pipeline"
+            state.current_intent = "SHOPPING_TURN"
+            await self._conversations.append_message(state, role="assistant", content=reply)
             state = await self._conversations.save(state)
             assistant_message = state.messages[-1]
+
             audit.info(
                 "turn_completed",
                 extra={

@@ -5,11 +5,7 @@ import {
   chat as postChat,
 } from "../api/agent";
 import { ApiError } from "../api/http";
-import type {
-  CartView,
-  HealthStatus,
-  TimelineMessage,
-} from "../types";
+import type { CartView, HealthStatus, TimelineMessage } from "../types";
 
 const INITIAL_HEALTH: HealthStatus = {
   agent: "checking",
@@ -31,11 +27,10 @@ export function useChat() {
   const [messages, setMessages] = useState<TimelineMessage[]>([]);
   const [cart, setCart] = useState<CartView | null>(null);
   const [suggestedActions, setSuggestedActions] = useState<string[]>([]);
-  const [isStarting, setIsStarting] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus>(INITIAL_HEALTH);
-  const initializationRef = useRef(false);
+  const healthStarted = useRef(false);
 
   const checkHealth = useCallback(async () => {
     const next: HealthStatus = {
@@ -59,50 +54,23 @@ export function useChat() {
     setHealth(next);
   }, []);
 
-  const createConversation = useCallback(async () => {
-    setIsStarting(true);
-    setError(null);
-    setCart(null);
-    try {
-      const response = await postChat();
-      setConversationId(response.conversation_id);
-      setMessages([
-        {
-          id: response.message_id,
-          role: "assistant",
-          content: response.reply,
-          createdAt: new Date().toISOString(),
-          activeAgent: response.active_agent,
-          intent: response.intent,
-        },
-      ]);
-      setSuggestedActions(response.suggested_actions || []);
-    } catch (reason) {
-      const message = reason instanceof ApiError
-        ? reason.message
-        : "Could not connect to the clothing agent.";
-      setError(message);
-      setMessages([
-        makeLocalMessage(
-          "assistant",
-          "I could not start the shopping conversation. Check that the clothing app and clothing agent are running.",
-        ),
-      ]);
-    } finally {
-      setIsStarting(false);
-      void checkHealth();
-    }
+  useEffect(() => {
+    if (healthStarted.current) return;
+    healthStarted.current = true;
+    void checkHealth();
   }, [checkHealth]);
 
-  useEffect(() => {
-    if (initializationRef.current) return;
-    initializationRef.current = true;
-    void createConversation();
-  }, [createConversation]);
+  const newConversation = useCallback(() => {
+    setConversationId(null);
+    setMessages([]);
+    setCart(null);
+    setSuggestedActions([]);
+    setError(null);
+  }, []);
 
   const sendMessage = useCallback(async (rawMessage: string) => {
     const message = rawMessage.trim();
-    if (!message || !conversationId || isSending) return;
+    if (!message || isSending) return;
 
     setError(null);
     setMessages((current) => [...current, makeLocalMessage("user", message)]);
@@ -111,6 +79,7 @@ export function useChat() {
 
     try {
       const response = await postChat(message, conversationId);
+      if (!conversationId) setConversationId(response.conversation_id);
       setMessages((current) => [
         ...current,
         {
@@ -125,7 +94,7 @@ export function useChat() {
         },
       ]);
       if (response.cart) setCart(response.cart);
-      setSuggestedActions(response.suggested_actions);
+      setSuggestedActions(response.suggested_actions || []);
     } catch (reason) {
       const messageText = reason instanceof ApiError
         ? reason.message
@@ -146,12 +115,12 @@ export function useChat() {
     messages,
     cart,
     suggestedActions,
-    isStarting,
+    isStarting: false,
     isSending,
     error,
     health,
     sendMessage,
-    newConversation: createConversation,
+    newConversation,
     checkHealth,
   };
 }

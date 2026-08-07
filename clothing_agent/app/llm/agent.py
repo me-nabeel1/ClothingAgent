@@ -34,11 +34,11 @@ class MonolithicAgentService:
                         "properties": {
                             "query_text": {"type": "string"},
                             "category": {"type": "string"},
-                            "colors": {"type": "array", "items": {"type": "string"}},
-                            "sizes": {"type": "array", "items": {"type": "string"}},
+                            "color": {"type": "string", "description": "A single color, e.g. 'Red'"},
+                            "size": {"type": "string", "description": "A single size, e.g. 'Large'"},
                             "minimum_price": {"type": "string"},
                             "maximum_price": {"type": "string"},
-                            "semantic_tags": {"type": "array", "items": {"type": "string"}}
+                            "semantic_tags": {"type": "string", "description": "Comma-separated tags"}
                         }
                     }
                 }
@@ -106,6 +106,16 @@ class MonolithicAgentService:
         
         try:
             if name == "search_products":
+                # Map flat string params to lists for the actual API request
+                if "color" in args:
+                    args["colors"] = [args.pop("color")]
+                if "size" in args:
+                    args["sizes"] = [args.pop("size")]
+                if "semantic_tags" in args:
+                    tags_str = args.pop("semantic_tags")
+                    if isinstance(tags_str, str):
+                        args["semantic_tags"] = [t.strip() for t in tags_str.split(",") if t.strip()]
+                        
                 req = ProductSearchRequest(**args)
                 req.limit = self._config.displayed_product_limit
                 res = await self._clothing_app.search_products(req)

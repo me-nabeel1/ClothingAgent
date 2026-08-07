@@ -1,22 +1,29 @@
 import { requestJson } from "./http";
-import type {
-  ChatTurnResponse,
-} from "../types";
+import type { ChatTurnResponse } from "../types";
 
-export const AGENT_API_URL = (
-  import.meta.env.VITE_AGENT_API_URL ?? "http://127.0.0.1:8000"
-).replace(/\/$/, "");
+function normalizeBase(value: string | undefined, fallback: string) {
+  return (value?.trim() || fallback).replace(/\/$/, "");
+}
 
-export const CLOTHING_APP_URL = (
-  import.meta.env.VITE_CLOTHING_APP_URL ?? "http://127.0.0.1:8100"
-).replace(/\/$/, "");
+// In local development the root .env can still set full localhost URLs.
+// In Docker/production, these relative defaults are proxied by Nginx so the
+// browser uses one origin and does not need container hostnames or CORS.
+export const AGENT_API_URL = normalizeBase(
+  import.meta.env.VITE_AGENT_API_URL,
+  "/agent",
+);
 
-export function chat(message?: string, conversation_id?: string | null): Promise<ChatTurnResponse> {
+export const CLOTHING_APP_URL = normalizeBase(
+  import.meta.env.VITE_CLOTHING_APP_URL,
+  "/catalog",
+);
+
+export function chat(message: string, conversation_id?: string | null): Promise<ChatTurnResponse> {
   return requestJson(`${AGENT_API_URL}/api/v1/chat`, {
     method: "POST",
-    body: JSON.stringify({ 
-      message: message || null, 
-      conversation_id: conversation_id || null 
+    body: JSON.stringify({
+      message,
+      conversation_id: conversation_id || null,
     }),
   });
 }
@@ -35,7 +42,9 @@ export async function getClothingAppHealth() {
 
 export function resolveProductImage(imageUrl: string | null): string | null {
   if (!imageUrl) return null;
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  const normalized = imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`;
+  const value = imageUrl.trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  const normalized = value.startsWith("/") ? value : `/${value}`;
   return `${CLOTHING_APP_URL}${normalized}`;
 }
