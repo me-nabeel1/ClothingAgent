@@ -19,8 +19,16 @@ T = TypeVar("T", bound=BaseModel)
 class LLMMessage(BaseModel):
     """One chat-completion message."""
 
-    role: Literal["system", "user", "assistant"]
-    content: str
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | None = None
+    name: str | None = None
+    tool_calls: list[dict[str, object]] | None = None
+    tool_call_id: str | None = None
+
+class LLMResponse(BaseModel):
+    """The assistant's response, which may include text or tool calls."""
+    content: str | None = None
+    tool_calls: list[dict[str, object]] | None = None
 
 
 class LLMClient:
@@ -36,21 +44,33 @@ class LLMClient:
 
         return self._config.llm_api_key is not None
 
-    async def generate_text(
+    async def generate_response(
         self,
         messages: list[LLMMessage],
         *,
+        tools: list[dict[str, object]] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-    ) -> str:
-        """Return one assistant text response."""
+    ) -> LLMResponse:
+        """Return the assistant's response, supporting tool calls."""
 
         payload = await self._complete(
             messages,
+            tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return self._content(payload)
+        try:
+            message = payload["choices"][0]["message"] # type: ignore[index]
+            return LLMResponse(
+                content=message.get("content"),
+                tool_calls=message.get("tool_calls"),
+            )
+        except (KeyError, IndexError, TypeError) as exc:
+            raise DependencyUnavailableError(
+                "The LLM returned an incomplete response.",
+                code="LLM_INVALID_RESPONSE",
+            ) from exc
 
     async def generate_structured(
         self,
@@ -102,6 +122,7 @@ class LLMClient:
         messages: list[LLMMessage],
         *,
         response_format: dict[str, object] | None = None,
+        tools: list[dict[str, object]] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> dict[str, object]:
@@ -113,12 +134,15 @@ class LLMClient:
             )
         payload: dict[str, object] = {
             "model": self._config.llm_model,
-            "messages": [message.model_dump() for message in messages],
+            "messages": [message.model_dump(exclude_none=True) for message in messages],
             "temperature": self._config.llm_temperature if temperature is None else temperature,
             "max_tokens": max_tokens or self._config.llm_max_tokens,
         }
         if response_format:
             payload["response_format"] = response_format
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         headers = {
             "Authorization": f"Bearer {self._config.llm_api_key.get_secret_value()}",
             "Content-Type": "application/json",

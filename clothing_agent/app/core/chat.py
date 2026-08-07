@@ -9,12 +9,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from app.agents.registry import AgentRegistry
-from app.agents.schemas import AgentRequest
-from app.clients.clothing_app.schemas import CartView, ProductOption
 from app.core.config import AgentConfig
 from app.core.conversation import ConversationService, ConversationView
-from app.core.routing import RouterService
+from app.core.monolithic_agent import MonolithicAgentService
 
 logger = logging.getLogger(__name__)
 audit = logging.getLogger("sales_audit")
@@ -41,13 +38,11 @@ class OrchestratorService:
     def __init__(
         self,
         conversations: ConversationService,
-        router_service: RouterService,
-        agents: AgentRegistry,
+        monolithic_agent: MonolithicAgentService,
         config: AgentConfig,
     ) -> None:
         self._conversations = conversations
-        self._router = router_service
-        self._agents = agents
+        self._agent = monolithic_agent
         self._config = config
 
     async def handle_chat(self, request: ChatRequest) -> ChatTurnResponse:
@@ -111,36 +106,20 @@ class OrchestratorService:
         )
         try:
             await self._conversations.append_message(state, role="user", content=message)
-            route = await self._router.route(message, state)
-            audit.info(
-                "route_decided",
-                extra={
-                    "event": "route_decided",
-                    "conversation_id": str(conversation_id),
-                    "intent": route.intent.value,
-                    "target_agent": route.target_agent.value,
-                    "confidence": route.confidence,
-                },
-            )
-            agent = self._agents.get(route.target_agent)
-            result = await agent.handle(
-                AgentRequest(message=message, context=state, route=route)
-            )
+            
+            reply, products, cart = await self._agent.handle_turn(message, state)
 
-            if result.products:
+            if products:
                 self._conversations.set_displayed_products(
                     state,
-                    result.products,
+                    products,
                     limit=self._config.displayed_product_limit,
                 )
-            for key, value in result.state_updates.items():
-                if hasattr(state, key):
-                    setattr(state, key, value)
 
-            state.active_agent = route.target_agent.value
-            state.current_intent = route.intent.value
+            state.active_agent = "monolithic_agent"
+            state.current_intent = "auto"
             await self._conversations.append_message(
-                state, role="assistant", content=result.reply
+                state, role="assistant", content=reply
             )
             state = await self._conversations.save(state)
             assistant_message = state.messages[-1]
@@ -152,20 +131,20 @@ class OrchestratorService:
                     "intent": state.current_intent,
                     "active_agent": state.active_agent,
                     "shopping_stage": state.shopping_stage,
-                    "product_count": len(result.products),
-                    "cart_item_count": len(result.cart.items) if result.cart else None,
+                    "product_count": len(products),
+                    "cart_item_count": len(cart.items) if cart else None,
                     "duration_ms": round((perf_counter() - started) * 1000, 2),
                 },
             )
             return ChatTurnResponse(
                 conversation_id=state.conversation_id,
                 message_id=assistant_message.message_id,
-                reply=result.reply,
+                reply=reply,
                 active_agent=state.active_agent,
                 intent=state.current_intent,
-                products=result.products,
-                cart=result.cart,
-                suggested_actions=result.suggested_actions,
+                products=products,
+                cart=cart,
+                suggested_actions=[],
             )
         except Exception:
             logger.exception(

@@ -733,3 +733,14 @@
 {"timestamp": "2026-08-06T15:21:10.321682+00:00", "level": "INFO", "service": "clothing-agent", "logger": "httpx", "message": "HTTP Request: POST https://api.groq.com/openai/v1/chat/completions \"HTTP/1.1 200 OK\"", "request_id": "e2f333ee42af4b7cab7e67312b8029b5"}
 {"timestamp": "2026-08-06T15:21:10.326280+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "request_completed", "request_id": "e2f333ee42af4b7cab7e67312b8029b5", "event": "request_completed", "method": "POST", "path": "/api/v1/chat", "status_code": 200, "duration_ms": 454.22}
 {"timestamp": "2026-08-06T15:26:15.097796+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_stopped", "request_id": "-", "event": "agent_stopped"}
+{"timestamp": "2026-08-06T15:26:19.108042+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_started", "request_id": "-", "event": "agent_started"}
+{"timestamp": "2026-08-06T15:38:08.383708+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_stopped", "request_id": "-", "event": "agent_stopped"}
+{"timestamp": "2026-08-06T15:38:09.787098+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_started", "request_id": "-", "event": "agent_started"}
+{"timestamp": "2026-08-06T15:38:24.610331+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_stopped", "request_id": "-", "event": "agent_stopped"}
+{"timestamp": "2026-08-06T15:38:27.082699+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_started", "request_id": "-", "event": "agent_started"}
+{"timestamp": "2026-08-06T15:40:07.430575+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_stopped", "request_id": "-", "event": "agent_stopped"}
+{"timestamp": "2026-08-06T15:40:09.636323+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_started", "request_id": "-", "event": "agent_started"}
+{"timestamp": "2026-08-06T15:40:28.309978+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_stopped", "request_id": "-", "event": "agent_stopped"}
+{"timestamp": "2026-08-06T15:40:30.388803+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_started", "request_id": "-", "event": "agent_started"}
+{"timestamp": "2026-08-06T15:40:46.747566+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_started", "request_id": "-", "event": "agent_started"}
+{"timestamp": "2026-08-06T15:40:58.978429+00:00", "level": "INFO", "service": "clothing-agent", "logger": "app.main", "message": "agent_started", "request_id": "-", "event": "agent_started"}
