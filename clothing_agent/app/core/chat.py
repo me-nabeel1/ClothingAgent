@@ -1,5 +1,7 @@
 """Conversation API and turn orchestration."""
 
+from __future__ import annotations
+
 import logging
 from time import perf_counter
 from uuid import UUID
@@ -7,10 +9,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.agents.registry import AgentRegistry
+from app.agents.schemas import AgentRequest
 from app.clients.clothing_app.schemas import CartView, ProductOption
 from app.core.config import AgentConfig
-from app.core.conversation import ConversationService
-from app.llm.agent import MonolithicAgentService
+from app.core.conversation import ConversationService, ConversationView
+from app.core.routing import RouterService
 
 logger = logging.getLogger(__name__)
 audit = logging.getLogger("sales_audit")
@@ -18,7 +22,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=1200)
+    message: str | None = Field(default=None, max_length=1200)
     conversation_id: UUID | None = None
 
 
@@ -37,21 +41,19 @@ class OrchestratorService:
     def __init__(
         self,
         conversations: ConversationService,
-        agent: MonolithicAgentService,
+        router_service: RouterService,
+        agents: AgentRegistry,
         config: AgentConfig,
     ) -> None:
         self._conversations = conversations
-        self._agent = agent
+        self._router = router_service
+        self._agents = agents
         self._config = config
-        ChatTurnResponse.model_rebuild()
 
     async def handle_chat(self, request: ChatRequest) -> ChatTurnResponse:
         started = perf_counter()
-        message = request.message.strip()
 
-        if request.conversation_id:
-            state = await self._conversations.get(request.conversation_id)
-        else:
+        if not request.conversation_id:
             state = await self._conversations.create()
             audit.info(
                 "conversation_started",
@@ -60,8 +62,43 @@ class OrchestratorService:
                     "conversation_id": str(state.conversation_id),
                 },
             )
+            if not request.message:
+                await self._conversations.append_message(
+                    state, role="assistant", content="Hi there! I am your personal shopping concierge. How can I help you today?"
+                )
+                state = await self._conversations.save(state)
+                assistant_message = state.messages[-1]
+                return ChatTurnResponse(
+                    conversation_id=state.conversation_id,
+                    message_id=assistant_message.message_id,
+                    reply=assistant_message.content,
+                    active_agent="sales",
+                    intent="greeting",
+                )
+            conversation_id = state.conversation_id
+        else:
+            conversation_id = request.conversation_id
+            state = await self._conversations.get(conversation_id)
 
-        conversation_id = state.conversation_id
+        message = request.message or ""
+        if not message.strip():
+            if not state.messages:
+                await self._conversations.append_message(
+                    state, role="assistant", content="Hi there! I am your personal shopping concierge. How can I help you today?"
+                )
+                state = await self._conversations.save(state)
+            
+            assistant_message = state.messages[-1]
+            return ChatTurnResponse(
+                conversation_id=state.conversation_id,
+                message_id=assistant_message.message_id,
+                reply=assistant_message.content,
+                active_agent="sales",
+                intent="greeting",
+            )
+
+
+
         audit.info(
             "turn_started",
             extra={
@@ -72,24 +109,41 @@ class OrchestratorService:
                 "message_preview": message[:160],
             },
         )
-
         try:
             await self._conversations.append_message(state, role="user", content=message)
-            reply, products, cart = await self._agent.handle_turn(message, state)
+            route = await self._router.route(message, state)
+            audit.info(
+                "route_decided",
+                extra={
+                    "event": "route_decided",
+                    "conversation_id": str(conversation_id),
+                    "intent": route.intent.value,
+                    "target_agent": route.target_agent.value,
+                    "confidence": route.confidence,
+                },
+            )
+            agent = self._agents.get(route.target_agent)
+            result = await agent.handle(
+                AgentRequest(message=message, context=state, route=route)
+            )
 
-            if products:
+            if result.products:
                 self._conversations.set_displayed_products(
                     state,
-                    products,
+                    result.products,
                     limit=self._config.displayed_product_limit,
                 )
+            for key, value in result.state_updates.items():
+                if hasattr(state, key):
+                    setattr(state, key, value)
 
-            state.active_agent = "sales_pipeline"
-            state.current_intent = "SHOPPING_TURN"
-            await self._conversations.append_message(state, role="assistant", content=reply)
+            state.active_agent = route.target_agent.value
+            state.current_intent = route.intent.value
+            await self._conversations.append_message(
+                state, role="assistant", content=result.reply
+            )
             state = await self._conversations.save(state)
             assistant_message = state.messages[-1]
-
             audit.info(
                 "turn_completed",
                 extra={
@@ -98,20 +152,20 @@ class OrchestratorService:
                     "intent": state.current_intent,
                     "active_agent": state.active_agent,
                     "shopping_stage": state.shopping_stage,
-                    "product_count": len(products),
-                    "cart_item_count": len(cart.items) if cart else None,
+                    "product_count": len(result.products),
+                    "cart_item_count": len(result.cart.items) if result.cart else None,
                     "duration_ms": round((perf_counter() - started) * 1000, 2),
                 },
             )
             return ChatTurnResponse(
                 conversation_id=state.conversation_id,
                 message_id=assistant_message.message_id,
-                reply=reply,
+                reply=result.reply,
                 active_agent=state.active_agent,
                 intent=state.current_intent,
-                products=products,
-                cart=cart,
-                suggested_actions=[],
+                products=result.products,
+                cart=result.cart,
+                suggested_actions=result.suggested_actions,
             )
         except Exception:
             logger.exception(

@@ -6,13 +6,17 @@ from functools import lru_cache
 
 import httpx
 
+from app.agents.cart.service import CartAgent
+from app.agents.fashion.service import FashionAgent
+from app.agents.registry import AgentRegistry
+from app.agents.sales.service import SalesAgent
+from app.agents.shopping.service import ShoppingAgent
 from app.clients.clothing_app.client import ClothingAppClient
-
 from app.core.config import AgentConfig, get_config
 from app.core.chat import OrchestratorService
 from app.core.conversation import ConversationRepository, ConversationService
 from app.llm.client import LLMClient
-from app.llm.agent import MonolithicAgentService
+from app.core.routing import AgentName, RouterService
 
 
 class AppContainer:
@@ -26,11 +30,26 @@ class AppContainer:
 
         self.conversations = ConversationService(ConversationRepository())
 
-        self.agent = MonolithicAgentService(self.llm, self.clothing_app, config)
-        
+        self.agents = AgentRegistry()
+        self.agents.register(AgentName.SALES, SalesAgent(self.llm, config))
+        self.agents.register(
+            AgentName.SHOPPING,
+            ShoppingAgent(self.llm, self.clothing_app, config),
+        )
+        self.agents.register(
+            AgentName.FASHION,
+            FashionAgent(self.llm, self.clothing_app, config),
+        )
+        self.agents.register(
+            AgentName.CART,
+            CartAgent(self.llm, self.clothing_app, config),
+        )
+
+        self.router = RouterService(self.llm, config)
         self.orchestrator = OrchestratorService(
             self.conversations,
-            self.agent,
+            self.router,
+            self.agents,
             config,
         )
 
