@@ -8,10 +8,9 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
-
 from app.clients.clothing_app.schemas import ProductOption
 from app.core.errors import AgentNotFoundError
+from pydantic import BaseModel, Field
 
 
 class ConversationMessage(BaseModel):

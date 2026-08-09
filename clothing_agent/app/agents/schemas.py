@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from app.clients.clothing_app.schemas import CartView, ProductOption
 from app.core.conversation import ConversationState
 from app.core.routing import RouteDecision
+from pydantic import BaseModel, Field
 
 
 class AgentRequest(BaseModel):

@@ -1,13 +1,10 @@
 """FastAPI entrypoint for the clothing sales-agent service."""
 
-from contextlib import asynccontextmanager
 import logging
-from time import perf_counter
-from uuid import uuid4
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.core.chat import router as conversation_router
 from app.core.config import get_config

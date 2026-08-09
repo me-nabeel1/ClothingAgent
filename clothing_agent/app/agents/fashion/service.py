@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from app.agents.schemas import AgentRequest, AgentResult
+from app.clients.clothing_app.client import ClothingAppClient
 from app.clients.clothing_app.schemas import ProductSearchRequest, ProductSearchResponse
 from app.core.config import AgentConfig
 from app.core.errors import DependencyUnavailableError
 from app.llm.client import LLMClient, LLMMessage
 from app.llm.prompts import FASHION_PROMPT
-from app.clients.clothing_app.client import ClothingAppClient
 from pydantic import BaseModel, Field
 
 

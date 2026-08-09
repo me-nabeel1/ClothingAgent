@@ -1,16 +1,12 @@
 """FastAPI entrypoint for the clothing-application demonstration service."""
 
-from contextlib import asynccontextmanager
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
-from time import perf_counter
-from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
 
 from app.api.exception_handlers import handle_app_error, handle_unexpected_error
 from app.api.health import router as health_router

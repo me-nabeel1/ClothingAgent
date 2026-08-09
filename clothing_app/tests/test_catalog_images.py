@@ -2,7 +2,6 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
 from app.catalog.schemas import ProductSearchRequest
 from app.catalog.service import CatalogService
 

@@ -21,7 +21,6 @@ from app.catalog.schemas import (
 from app.config import get_config
 from app.shared.errors import NotFoundError
 
-
 LOCAL_IMAGE_ROUTE = "/assets/products/"
 
 

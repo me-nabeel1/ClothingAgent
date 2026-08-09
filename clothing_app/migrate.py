@@ -6,8 +6,10 @@ from pathlib import Path
 workspace_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(workspace_root))
 
-from clothing_app.app.database import get_engine
 from sqlalchemy import text
+
+from clothing_app.app.database import get_engine
+
 
 async def main():
     engine = get_engine()

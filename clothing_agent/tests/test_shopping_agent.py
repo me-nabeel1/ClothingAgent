@@ -10,7 +10,7 @@ def test_current_tool_surface_is_small_and_commerce_focused():
     )
     names = {
         item["function"]["name"]
-        for item in service._get_tools()  # noqa: SLF001 - intentional contract test
+        for item in service._get_tools()
     }
     assert names == {
         "search_products",

@@ -4,12 +4,11 @@ import logging
 from time import perf_counter
 from uuid import uuid4
 
-from fastapi import Request
-
 from app.shared.observability import (
     reset_request_id,
     set_request_id,
 )
+from fastapi import Request
 
 logger = logging.getLogger(__name__)
 

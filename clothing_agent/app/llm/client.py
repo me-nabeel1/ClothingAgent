@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 import httpx
-from pydantic import BaseModel
-from typing import Literal
-
 from app.core.config import AgentConfig
 from app.core.errors import DependencyUnavailableError
+from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -79,11 +77,11 @@ class LLMClient:
         )
         content = self._content(payload).strip()
         if content.startswith("```"):
-            content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.I)
+            content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.IGNORECASE)
         try:
             return response_model.model_validate_json(content)
         except Exception as exc:
-            match = re.search(r"\{.*\}", content, flags=re.S)
+            match = re.search(r"\{.*\}", content, flags=re.DOTALL)
             if not match:
                 raise DependencyUnavailableError(
                     "The LLM returned an invalid structured response.",

@@ -8,8 +8,6 @@ from typing import Any, TypeVar
 from uuid import UUID
 
 import httpx
-from pydantic import BaseModel
-
 from app.clients.clothing_app.errors import ClothingAppUnavailableError
 from app.clients.clothing_app.schemas import (
     AddCartItemRequest,
@@ -23,6 +21,7 @@ from app.clients.clothing_app.schemas import (
 )
 from app.core.config import AgentConfig
 from app.core.errors import AgentError
+from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)

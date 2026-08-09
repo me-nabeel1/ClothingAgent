@@ -5,18 +5,17 @@ from __future__ import annotations
 from functools import lru_cache
 
 import httpx
-
 from app.agents.cart.service import CartAgent
 from app.agents.fashion.service import FashionAgent
 from app.agents.registry import AgentRegistry
 from app.agents.sales.service import SalesAgent
 from app.agents.shopping.service import ShoppingAgent
 from app.clients.clothing_app.client import ClothingAppClient
-from app.core.config import AgentConfig, get_config
 from app.core.chat import OrchestratorService
+from app.core.config import AgentConfig, get_config
 from app.core.conversation import ConversationRepository, ConversationService
-from app.llm.client import LLMClient
 from app.core.routing import AgentName, RouterService
+from app.llm.client import LLMClient
 
 
 class AppContainer:

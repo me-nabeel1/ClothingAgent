@@ -49,7 +49,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 .topbar {
-  width: min(1180px, 100%);
+  width: min(800px, 100%);
   min-height: 68px;
   margin-bottom: 16px;
   padding: 10px 12px 10px 16px;
@@ -103,7 +103,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 .cart-button b { min-width: 23px; height: 23px; display: grid; place-items: center; color: white; background: var(--ink); border-radius: 8px; font-size: 11px; }
 
-.workspace { position: relative; width: min(1180px, 100%); height: calc(100vh - 112px); min-height: 620px; display: flex; }
+.workspace { position: relative; width: min(800px, 100%); height: calc(100vh - 112px); min-height: 620px; display: flex; }
 .chat-panel {
   flex: 1; min-width: 0; overflow: hidden;
   display: grid; grid-template-rows: minmax(0, 1fr) auto;

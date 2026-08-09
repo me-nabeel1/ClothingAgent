@@ -2,11 +2,10 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
-
 from app.catalog.models import Branch, Product
 from app.database import get_session_factory
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])

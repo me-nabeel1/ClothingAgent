@@ -7,8 +7,6 @@ import logging
 import re
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
-
 from app.agents.schemas import AgentRequest, AgentResult
 from app.clients.clothing_app.client import ClothingAppClient
 from app.clients.clothing_app.schemas import (
@@ -20,11 +18,16 @@ from app.clients.clothing_app.schemas import (
     ProductSearchResponse,
 )
 from app.core.config import AgentConfig
-from app.core.conversation import ConversationState, DisplayedProduct, ShoppingPreferences
+from app.core.conversation import (
+    ConversationState,
+    DisplayedProduct,
+    ShoppingPreferences,
+)
 from app.core.errors import AgentError, DependencyUnavailableError
+from app.core.routing import Intent
 from app.llm.client import LLMClient, LLMMessage
 from app.llm.prompts import SEARCH_EXTRACTION_PROMPT, SHOPPING_RESPONSE_PROMPT
-from app.core.routing import Intent
+from pydantic import BaseModel, Field
 
 COLORS = {
     "black", "white", "blue", "navy", "red", "green", "beige", "brown",
@@ -143,22 +146,6 @@ class ShoppingAgent:
         )
         result = await self._client.search_products(search_request)
         
-        if not result.products:
-            fallback_category = None
-            if search_request.category:
-                if search_request.category in LOWER_BODY_CATEGORIES:
-                    fallback_category = "trousers"
-                elif search_request.category in UPPER_BODY_CATEGORIES:
-                    fallback_category = "t-shirts"
-                    
-            fallback_request = ProductSearchRequest(
-                limit=self._config.displayed_product_limit,
-                category=fallback_category
-            )
-            fallback_result = await self._client.search_products(fallback_request)
-            result.products = fallback_result.products
-            result.relaxed_constraints.append("fallback_to_alternatives")
-
         assert isinstance(result, ProductSearchResponse)
         audit.info(
             "inventory_search_completed",
@@ -316,7 +303,7 @@ class ShoppingAgent:
         text = message.lower()
         category = next((value for key, value in CATEGORIES.items() if key in text), None)
         colors = [color for color in COLORS if re.search(rf"\b{re.escape(color)}\b", text)]
-        size_match = re.search(r"(?:size\s*)?\b(\d{2}|xs|s|m|l|xl|xxl)\b", text, re.I)
+        size_match = re.search(r"(?:size\s*)?\b(\d{2}|xs|s|m|l|xl|xxl)\b", text, re.IGNORECASE)
         price_match = re.search(
             r"(?:under|below|maximum|max|budget)\s*(?:pkr|rs\.?|rupees)?\s*([0-9,]+)",
             text,
@@ -537,6 +524,8 @@ class ShoppingAgent:
             except DependencyUnavailableError:
                 if not self._config.allow_local_fallback:
                     raise
+        if not result.products:
+            return "How about we explore some other upper body or lower body options instead?"
         first = result.products[0]
         reason = (
             first.match_reasons[0].rstrip(".")

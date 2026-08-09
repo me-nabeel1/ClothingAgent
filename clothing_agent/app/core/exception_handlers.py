@@ -2,11 +2,10 @@
 
 import logging
 
-from fastapi import Request
-from fastapi.responses import JSONResponse
-
 from app.core.errors import AgentError
 from app.core.observability import get_request_id
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 

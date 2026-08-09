@@ -5,9 +5,9 @@ from __future__ import annotations
 from app.agents.schemas import AgentRequest, AgentResult
 from app.core.config import AgentConfig
 from app.core.errors import DependencyUnavailableError
+from app.core.routing import Intent
 from app.llm.client import LLMClient, LLMMessage
 from app.llm.prompts import SALES_PROMPT
-from app.core.routing import Intent
 
 
 class SalesAgent:

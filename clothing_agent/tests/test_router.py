@@ -1,7 +1,6 @@
 import pytest
-from pydantic import ValidationError
-
 from app.core.chat import ChatRequest
+from pydantic import ValidationError
 
 
 def test_chat_contract_creates_conversation_from_first_real_message():

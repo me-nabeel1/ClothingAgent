@@ -13,10 +13,10 @@ from app.clients.clothing_app.schemas import (
 )
 from app.core.config import AgentConfig
 from app.core.errors import DependencyUnavailableError
-from app.llm.client import LLMClient, LLMMessage
-from pydantic import BaseModel, Field
 from app.core.routing import Intent
+from app.llm.client import LLMClient, LLMMessage
 from app.llm.prompts import CART_EXTRACTION_PROMPT
+from pydantic import BaseModel, Field
 
 ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
 

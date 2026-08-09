@@ -114,7 +114,6 @@ export default function App() {
           </div>
 
           <div className="chat-controls">
-            {error && <div className="error-banner">{error}</div>}
             {messages.length > 0 && suggestedActions.length > 0 && (
               <div className="suggestion-strip" aria-label="Suggested next actions">
                 {suggestedActions.slice(0, 3).map((action) => (

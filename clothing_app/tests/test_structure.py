@@ -1,8 +1,7 @@
 """Small structural tests that do not require a running PostgreSQL server."""
 
-from fastapi.routing import APIRoute
-
 from app.main import app
+from fastapi.routing import APIRoute
 
 
 def api_route_records() -> set[tuple[str, str]]:
@@ -61,9 +60,8 @@ def test_only_required_api_routes_are_exposed() -> None:
 def test_temporary_cart_can_be_created_and_read() -> None:
     """Verify the demo cart lifecycle without requiring PostgreSQL."""
 
-    from fastapi.testclient import TestClient
-
     from app.database import get_db
+    from fastapi.testclient import TestClient
 
     async def fake_db():
         # Cart creation/read does not access the catalog database.

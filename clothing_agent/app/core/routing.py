@@ -7,12 +7,12 @@ import re
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
-
-from .config import AgentConfig
 from app.core.conversation import ConversationState
 from app.core.errors import DependencyUnavailableError
 from app.llm.client import LLMClient, LLMMessage
+from pydantic import BaseModel, Field
+
+from .config import AgentConfig
 
 
 class Intent(StrEnum):

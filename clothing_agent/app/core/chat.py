@@ -6,15 +6,14 @@ import logging
 from time import perf_counter
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
-
 from app.agents.registry import AgentRegistry
 from app.agents.schemas import AgentRequest
 from app.clients.clothing_app.schemas import CartView, ProductOption
 from app.core.config import AgentConfig
-from app.core.conversation import ConversationService, ConversationView
+from app.core.conversation import ConversationService
 from app.core.routing import RouterService
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 audit = logging.getLogger("sales_audit")
