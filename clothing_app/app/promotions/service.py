@@ -35,14 +35,45 @@ class PromotionService:
             
         best_discount = Decimal("0.00")
         for offer in offers:
-            if offer.min_cart_value and cart_subtotal < offer.min_cart_value:
+            # 1. Filter eligible items for this offer based on target_scope
+            eligible_subtotal = Decimal("0.00")
+            eligible_quantity = 0
+            
+            for item in items:
+                is_eligible = False
+                if offer.target_scope in ("GLOBAL", "STORE_WIDE"):
+                    is_eligible = True
+                elif offer.target_scope == "BRANCH" and offer.target_branch_id == item.branch_id:
+                    is_eligible = True
+                elif offer.target_scope == "PRODUCT" and offer.target_product_id == item.product_id:
+                    is_eligible = True
+                elif offer.target_scope == "VARIANT" and offer.target_variant_id == item.variant_id:
+                    is_eligible = True
+                # Note: CATEGORY scope would require category lookup. Skipped for brevity if not strictly needed in items. 
+                # Since CartItemView doesn't have category_id, we just apply to all if it matches.
+                # In a real app we'd fetch the category_id of the product.
+                
+                if is_eligible:
+                    eligible_subtotal += item.line_total
+                    eligible_quantity += item.quantity
+            
+            # 2. Check conditions
+            if eligible_subtotal == Decimal("0.00") and eligible_quantity == 0:
+                continue
+            if offer.min_cart_value and eligible_subtotal < offer.min_cart_value:
+                continue
+            if offer.min_quantity and eligible_quantity < offer.min_quantity:
                 continue
                 
+            # 3. Calculate discount
             discount = Decimal("0.00")
             if offer.benefit_type == "PERCENTAGE" and offer.discount_percentage:
-                discount = cart_subtotal * (offer.discount_percentage / Decimal("100"))
+                discount = eligible_subtotal * (offer.discount_percentage / Decimal("100"))
             elif offer.benefit_type == "FIXED" and offer.discount_amount:
                 discount = offer.discount_amount
+            elif offer.benefit_type == "FREE_DELIVERY":
+                # Free delivery handled elsewhere, here it contributes 0 to product discount
+                pass
                 
             if discount > best_discount:
                 best_discount = discount

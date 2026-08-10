@@ -14,8 +14,11 @@ def product_row(image_url: str | None) -> dict[str, object]:
         "variant_id": 10,
         "branch_id": 100,
         "article_code": "TEE-001",
+        "sku": "TEE-001-B-M",
         "product_name": "Flex Compression Tee",
         "category": "T-shirts",
+        "product_type": "t_shirt",
+        "occasion": "casual",
         "gender": "Men",
         "brand": "Demo",
         "color": "Black",
@@ -51,7 +54,7 @@ async def test_search_omits_missing_local_product_images() -> None:
 
     response = await service.search(ProductSearchRequest(limit=1))
 
-    assert response.products[0].image_url is None
+    assert response.products[0].images == []
 
 
 @pytest.mark.asyncio
@@ -63,4 +66,4 @@ async def test_search_normalizes_existing_legacy_product_image_paths() -> None:
 
     response = await service.search(ProductSearchRequest(limit=1))
 
-    assert response.products[0].image_url == "/assets/products/flex-compression-tee.svg"
+    assert response.products[0].images == ["/assets/products/flex-compression-tee.svg"]

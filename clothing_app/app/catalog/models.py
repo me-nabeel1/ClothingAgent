@@ -106,6 +106,8 @@ class Product(Base):
         ForeignKey(f"{SCHEMA}.categories.category_id", ondelete="RESTRICT"),
         nullable=False,
     )
+    product_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    occasion: Mapped[str | None] = mapped_column(String(60))
     gender: Mapped[str] = mapped_column(String(20), nullable=False)
     brand: Mapped[str] = mapped_column(String(100), nullable=False)
     material: Mapped[str | None] = mapped_column(String(160))

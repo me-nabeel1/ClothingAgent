@@ -97,6 +97,22 @@ class CatalogRepository:
             conditions.append(
                 func.lower(Product.fit).in_([value.lower() for value in request.fits])
             )
+        if request.seasons:
+            conditions.append(
+                func.lower(Product.season).in_([value.lower() for value in request.seasons])
+            )
+        if request.product_types:
+            conditions.append(
+                func.lower(Product.product_type).in_([value.lower() for value in request.product_types])
+            )
+        if request.occasions:
+            conditions.append(
+                func.lower(Product.occasion).in_([value.lower() for value in request.occasions])
+            )
+        if request.article_code:
+            conditions.append(func.lower(Product.article_code) == request.article_code.lower())
+        if request.sku:
+            conditions.append(func.lower(ProductVariant.sku) == request.sku.lower())
         if request.semantic_tags:
             # The existing demo database does not contain a dedicated tags
             # column. Match semantic needs against the descriptive fields that
@@ -130,6 +146,11 @@ class CatalogRepository:
                 request.branch_code,
                 request.materials,
                 request.fits,
+                request.seasons,
+                request.product_types,
+                request.occasions,
+                request.article_code,
+                request.sku,
             )
         )
         if request.query_text and not request.semantic_tags and not structured_filters_present:
@@ -159,14 +180,42 @@ class CatalogRepository:
                 )
 
         available = self._available_quantity_expression()
+        
+        # Step 1: Find matching product IDs first to respect limit properly.
+        product_query = (
+            select(Product.product_id)
+            .select_from(ProductVariant)
+            .join(Product, Product.product_id == ProductVariant.product_id)
+            .join(Category, Category.category_id == Product.category_id)
+            .join(Color, Color.color_id == ProductVariant.color_id)
+            .join(Size, Size.size_id == ProductVariant.size_id)
+            .join(BranchInventory, BranchInventory.variant_id == ProductVariant.variant_id)
+            .join(Branch, Branch.branch_id == BranchInventory.branch_id)
+            .where(and_(*conditions))
+        )
+        
+        # Determine sorting for ranking
         if request.in_stock_only:
-            conditions.append(available > 0)
+            product_query = product_query.where(available > 0)
+            
+        product_query = (
+            product_query
+            .group_by(Product.product_id)
+            .order_by(
+                func.max(available).desc(), 
+                func.min(ProductVariant.selling_price).asc()
+            )
+            .limit(request.limit)
+        )
+        
+        product_ids = (await self._db.scalars(product_query)).all()
+        if not product_ids:
+            return []
 
+        # Step 2: Fetch full flattened details for these specific products
         result = await self._db.execute(
             self._base_statement()
-            .where(and_(*conditions))
-            .order_by(available.desc(), ProductVariant.selling_price.asc())
-            .limit(database_limit)
+            .where(Product.product_id.in_(product_ids))
         )
         return [dict(row) for row in result.mappings().all()]
 
@@ -224,6 +273,25 @@ class CatalogRepository:
         )
         return [dict(row) for row in result.mappings().all()]
 
+    async def get_distinct_values(self) -> dict[str, list[str]]:
+        """Return all available catalog vocabulary dynamically."""
+        
+        categories = (await self._db.scalars(select(Category.category_name).distinct())).all()
+        product_types = (await self._db.scalars(select(Product.product_type).distinct())).all()
+        occasions = (await self._db.scalars(select(Product.occasion).where(Product.occasion != None).distinct())).all()
+        sizes = (await self._db.scalars(select(Size.size_label).distinct())).all()
+        colors = (await self._db.scalars(select(Color.color_name).distinct())).all()
+        seasons = (await self._db.scalars(select(Product.season).where(Product.season != None).distinct())).all()
+        
+        return {
+            "categories": sorted(list(categories)),
+            "product_types": sorted([p for p in product_types if p and p != "unknown"]),
+            "occasions": sorted(list(occasions)),
+            "sizes": list(sizes), # maybe sort later
+            "colors": sorted(list(colors)),
+            "seasons": sorted(list(seasons)),
+        }
+
     async def availability_row(
         self,
         variant_id: int,
@@ -280,8 +348,11 @@ class CatalogRepository:
                 ProductVariant.variant_id.label("variant_id"),
                 Branch.branch_id.label("branch_id"),
                 Product.article_code.label("article_code"),
+                ProductVariant.sku.label("sku"),
                 Product.product_name.label("product_name"),
                 Category.category_name.label("category"),
+                Product.product_type.label("product_type"),
+                Product.occasion.label("occasion"),
                 Product.gender.label("gender"),
                 Product.brand.label("brand"),
                 Color.color_name.label("color"),

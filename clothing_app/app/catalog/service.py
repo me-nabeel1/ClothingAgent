@@ -12,9 +12,11 @@ from app.catalog.repository import CatalogRepository
 from app.catalog.schemas import (
     BranchView,
     ProductDetails,
-    ProductOption,
     ProductSearchRequest,
     ProductSearchResponse,
+    ProductView,
+    VariantView,
+    BranchAvailabilityView,
     StoreContext,
 )
 from app.config import get_config
@@ -41,15 +43,8 @@ class CatalogService:
         self._image_url_cache: dict[str, str | None] = {}
 
     async def search(self, request: ProductSearchRequest) -> ProductSearchResponse:
-        """Search and rank products using hard filters and semantic preferences.
-
-        When relaxation is enabled and no result exists, the service relaxes
-        color, branch, stock, and budget in that order. Every relaxation is
-        returned explicitly so the agent cannot present alternatives as exact
-        matches.
-        """
-
-        working = request.model_copy(update={"limit": max(request.limit, 20)})
+        """Search and rank products using deterministic filters."""
+        working = request.model_copy(update={"limit": min(request.limit, 20)})
         rows = await self._repository.search_rows(working)
         relaxed: list[str] = []
 
@@ -77,32 +72,89 @@ class CatalogService:
             relaxed.append("budget_15_percent")
             rows = await self._repository.search_rows(working)
 
-        products = [self._rank(self._with_resolved_image(row), request) for row in rows]
-        products.sort(
-            key=lambda item: (-item.match_score, -item.available_quantity, item.price)
-        )
-        products = products[: request.limit]
+        products = self._group_rows_into_products(rows)
+        # Apply ranking based on original DB ordering which is preserved in products map insertion order.
         return ProductSearchResponse(
             products=products,
             result_count=len(products),
             relaxed_constraints=relaxed,
         )
 
-    async def get_menu(self) -> list[dict[str, Any]]:
-        """Return a menu of products grouped by actual database categories.
+    def _group_rows_into_products(self, rows: list[dict[str, Any]]) -> list[ProductView]:
+        """Group flattened database rows into the structured ProductView contract."""
+        products_map = {}
+        for r in rows:
+            row = self._with_resolved_image(r)
+            pid = row["product_id"]
+            if pid not in products_map:
+                products_map[pid] = {
+                    "product_id": pid,
+                    "article_code": row["article_code"],
+                    "product_name": row["product_name"],
+                    "description": row.get("description"),
+                    "category": row["category"],
+                    "subcategory": None,
+                    "product_type": row.get("product_type", "unknown"),
+                    "gender": row["gender"],
+                    "brand": row["brand"],
+                    "material": row.get("material"),
+                    "fit": row.get("fit"),
+                    "season": row.get("season"),
+                    "occasion": row.get("occasion"),
+                    "base_price": row["price"], # Default, recalculated later
+                    "images": [row["image_url"]] if row.get("image_url") else [],
+                    "variants_map": {}
+                }
+            
+            p_map = products_map[pid]
+            if row.get("image_url") and row["image_url"] not in p_map["images"]:
+                p_map["images"].append(row["image_url"])
+                
+            vid = row["variant_id"]
+            if vid not in p_map["variants_map"]:
+                p_map["variants_map"][vid] = {
+                    "variant_id": vid,
+                    "sku": row["sku"],
+                    "color": row["color"],
+                    "size": row["size"],
+                    "price": row["price"],
+                    "is_available": False,
+                    "branch_availability": []
+                }
+            
+            v_map = p_map["variants_map"][vid]
+            available_qty = max(int(row.get("available_quantity") or 0), 0)
+            
+            v_map["branch_availability"].append(BranchAvailabilityView(
+                branch_code=row["branch_code"],
+                branch_name=row["branch_name"],
+                is_available=available_qty > 0,
+                available_quantity=available_qty
+            ))
+            
+            if available_qty > 0:
+                v_map["is_available"] = True
+                
+        # Finalize list
+        results = []
+        for p in products_map.values():
+            variants = [VariantView(**v) for v in p["variants_map"].values()]
+            p["variants"] = variants
+            p["base_price"] = min((v.price for v in variants), default=Decimal(0))
+            del p["variants_map"]
+            results.append(ProductView(**p))
+            
+        return results
 
-        Uses a single wide search instead of N sequential per-category queries
-        to minimize latency on the landing page.
-        """
-        # Single wide search: fetch a generous batch of in-stock products
+    async def get_menu(self) -> list[dict[str, Any]]:
+        """Return a menu of products grouped by actual database categories."""
         wide = await self.search(
             ProductSearchRequest(
                 in_stock_only=True,
                 allow_relaxation=False,
-                limit=500,
+                limit=20,
             )
         )
-        # Group by category
         groups: dict[str, list] = {}
         for product in wide.products:
             cat = product.category
@@ -110,7 +162,7 @@ class CatalogService:
                 groups[cat] = []
             if len(groups[cat]) < 10:
                 groups[cat].append(product)
-        # Stable category ordering
+                
         preferred_order = [
             "T-Shirts", "Polo Shirts", "Cotton Shirts", "Formal Shirts",
             "Jeans", "Trousers", "Cotton Pants", "Cargo Pants",
@@ -129,61 +181,49 @@ class CatalogService:
 
     async def get_product(self, product_id: int) -> ProductDetails:
         """Return product metadata and all active branch-specific options."""
-
         metadata = await self._repository.product_metadata(product_id)
         if not metadata:
             raise NotFoundError("Product was not found.", code="PRODUCT_NOT_FOUND")
 
         rows = await self._repository.search_rows(
-            ProductSearchRequest(in_stock_only=False, allow_relaxation=False, limit=30),
+            ProductSearchRequest(in_stock_only=False, allow_relaxation=False, limit=1),
             product_id=product_id,
             database_limit=300,
         )
-        options = [
-            self._rank(self._with_resolved_image(row), ProductSearchRequest())
-            for row in rows
+        products = self._group_rows_into_products(rows)
+        if not products:
+            raise NotFoundError("Product was not found.", code="PRODUCT_NOT_FOUND")
+            
+        product = products[0]
+        # Fetch all exact image paths
+        all_images = await self._repository.image_urls(product_id)
+        product.images = [
+            url for url in (self._resolve_image_url(i) for i in all_images) if url
         ]
-        options.sort(
-            key=lambda item: (
-                item.color.lower(),
-                item.size,
-                item.branch_name.lower(),
-            )
-        )
-        metadata["image_urls"] = [
-            url
-            for url in (
-                self._resolve_image_url(image_url)
-                for image_url in await self._repository.image_urls(product_id)
-            )
-            if url is not None
-        ]
-        metadata["tags"] = metadata.get("tags") or []
-        metadata["attributes"] = metadata.get("attributes") or {}
-        return ProductDetails(**metadata, options=options)
+        
+        return ProductDetails(product=product)
 
     async def list_branches(self) -> list[BranchView]:
         """Return the active branches available for filtering and stock display."""
-
         return [BranchView(**row) for row in await self._repository.list_branches()]
 
     async def get_store_context(self) -> StoreContext:
-        """Return the store context for the agent."""
+        """Return the dynamic store context for the agent."""
         branches = await self.list_branches()
+        distinct_vals = await self._repository.get_distinct_values()
+        
         return StoreContext(
             store_name="Northstar Menswear",
             store_id="northstar",
             branches=branches,
-            categories=[
-                "Shirts", "Pants", "Jeans", "T-Shirts", "Polos", "Kurtas", "Waistcoats", "Jackets", "Hoodies", "Accessories"
-            ],
-            subcategories=[
-                "Formal Shirts", "Casual Shirts", "Chinos", "Formal Pants", "Denim"
-            ],
+            categories=distinct_vals["categories"],
+            subcategories=[],
+            product_types=distinct_vals["product_types"],
             supported_attributes=["color", "size", "fit", "material", "season", "occasion"],
-            sizes=["S", "M", "L", "XL", "XXL", "30", "32", "34", "36", "38"],
-            colors=["Black", "White", "Navy", "Blue", "Grey", "Beige", "Maroon", "Olive", "Brown", "Green"],
-            seasons=["Summer", "Winter", "All Season", "Monsoon"],
+            sizes=distinct_vals["sizes"],
+            colors=distinct_vals["colors"],
+            seasons=distinct_vals["seasons"],
+            occasions=distinct_vals["occasions"],
             capabilities=[
                 "Catalog Browsing",
                 "Dynamic Filtering",
@@ -195,18 +235,14 @@ class CatalogService:
             ]
         )
 
-
-
     def _with_resolved_image(self, row: dict[str, Any]) -> dict[str, Any]:
         """Return a copy with a browser-safe product image URL."""
-
         item = dict(row)
         item["image_url"] = self._resolve_image_url(item.get("image_url"))
         return item
 
     def _resolve_image_url(self, image_url: str | None) -> str | None:
         """Normalize local product image paths and suppress missing assets."""
-
         if not image_url:
             return None
 
@@ -248,65 +284,3 @@ class CatalogService:
         resolved = f"{LOCAL_IMAGE_ROUTE}{'/'.join(parts)}"
         self._image_url_cache[raw_url] = resolved
         return resolved
-
-    @staticmethod
-    def _rank(row: dict[str, Any], request: ProductSearchRequest) -> ProductOption:
-        """Attach deterministic, explainable ranking metadata to a result."""
-
-        item = deepcopy(row)
-        tags = [str(tag) for tag in (item.get("tags") or [])]
-        requested_tags = {tag.lower() for tag in request.semantic_tags}
-        searchable_text = " ".join(
-            str(item.get(field) or "")
-            for field in (
-                "product_name",
-                "category",
-                "description",
-                "material",
-                "fit",
-                "season",
-            )
-        ).lower()
-        matched_semantic_tags = {
-            tag for tag in requested_tags if tag in searchable_text
-        }
-        score = 0.0
-        reasons: list[str] = []
-
-        if request.categories:
-            score += 25
-            reasons.append("Category match")
-            
-            cat_name = item.get("category", "").lower()
-            if any(req_cat.lower() == cat_name for req_cat in request.categories):
-                score += 15
-                reasons.append("Exact category match")
-        if request.sizes:
-            score += 20
-            reasons.append("Requested size")
-        if request.branch_code:
-            score += 20
-            reasons.append("Preferred branch")
-        if request.colors:
-            score += 15
-            reasons.append("Preferred color")
-        if request.maximum_price is not None:
-            score += 10
-            reasons.append("Within budget")
-        if matched_semantic_tags:
-            score += min(20, len(matched_semantic_tags) * 5)
-            reasons.append(
-                "Matches " + ", ".join(sorted(matched_semantic_tags))
-            )
-        if int(item.get("available_quantity") or 0) > 0:
-            score += 10
-            reasons.append("In stock")
-
-        item["tags"] = tags
-        item["available_quantity"] = max(int(item.get("available_quantity") or 0), 0)
-        item["in_transit_quantity"] = max(
-            int(item.get("in_transit_quantity") or 0), 0
-        )
-        item["match_score"] = score
-        item["match_reasons"] = reasons
-        return ProductOption.model_validate(item)
