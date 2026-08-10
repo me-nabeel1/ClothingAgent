@@ -8,11 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppConfig(BaseSettings):
-    """Settings required to run the local clothing application API.
-
-    The service reads an existing PostgreSQL database. It never creates,
-    drops, migrates, or seeds the catalog schema.
-    """
+    """Settings required to run the local clothing application API."""
 
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env", "../../.env"),
@@ -31,7 +27,7 @@ class AppConfig(BaseSettings):
     log_backup_count: int = Field(default=5, ge=1, le=20)
 
     database_url: str = (
-        "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/ClothingAppDummyDB"
+        "postgresql+asyncpg://postgres:pgadmin@127.0.0.1:5432/ClothingAppDummyDB"
     )
     database_pool_size: int = Field(default=5, ge=1, le=30)
     database_max_overflow: int = Field(default=5, ge=0, le=30)

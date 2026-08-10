@@ -11,7 +11,6 @@ from sqlalchemy.orm import aliased
 
 from app.catalog.models import (
     Branch,
-    BranchInventory,
     Category,
     Color,
     Product,
@@ -19,6 +18,7 @@ from app.catalog.models import (
     ProductVariant,
     Size,
 )
+from app.inventory.models import BranchInventory
 from app.catalog.schemas import ProductSearchRequest
 
 

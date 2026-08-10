@@ -2,8 +2,8 @@
 
 import logging
 
-from app.shared.errors import AppError
-from app.shared.observability import get_request_id
+from app.common.exceptions import AppError
+from app.common.observability import get_request_id
 from fastapi import Request
 from fastapi.responses import JSONResponse
 

@@ -13,10 +13,13 @@ from app.api.health import router as health_router
 from app.api.middleware import trace_request
 from app.cart.api import router as cart_router
 from app.catalog.api import router as catalog_router
+from app.inventory.api import router as inventory_router
+from app.promotions.api import router as promotions_router
+from app.orders.api import router as orders_router
 from app.config import get_config
 from app.database import close_database
-from app.shared.errors import AppError
-from app.shared.observability import configure_logging
+from app.common.exceptions import AppError
+from app.common.observability import configure_logging
 
 config = get_config()
 configure_logging(config)
@@ -50,8 +53,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health_router, prefix=config.api_prefix)
 app.include_router(catalog_router, prefix=config.api_prefix)
+app.include_router(inventory_router, prefix=config.api_prefix)
+app.include_router(promotions_router, prefix=config.api_prefix)
 app.include_router(cart_router, prefix=config.api_prefix)
+app.include_router(orders_router, prefix=config.api_prefix)
 
 images_dir = Path(config.product_images_dir)
 if images_dir.exists():

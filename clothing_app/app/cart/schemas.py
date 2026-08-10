@@ -50,3 +50,17 @@ class CartView(BaseModel):
     created_at: datetime
     updated_at: datetime
     expires_at: datetime
+
+class PreviewCartRequest(BaseModel):
+    offer_code: str | None = None
+
+class StoreOrderPreview(BaseModel):
+    """The checkout preview with discounts and fees applied."""
+    cart_id: UUID
+    items: list[CartItemView] = Field(default_factory=list)
+    total_quantity: int = 0
+    subtotal: Decimal = Decimal("0.00")
+    discount_total: Decimal = Decimal("0.00")
+    delivery_fee: Decimal = Decimal("0.00")
+    grand_total: Decimal = Decimal("0.00")
+    applied_offer_code: str | None = None

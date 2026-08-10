@@ -7,12 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog.repository import CatalogRepository
 from app.catalog.schemas import (
-    AvailabilityView,
     BranchView,
     ProductDetails,
     ProductSearchRequest,
     ProductSearchResponse,
     MenuResponse,
+    StoreContext,
 )
 from app.catalog.service import CatalogService
 from app.database import get_db
@@ -24,6 +24,13 @@ def get_catalog_service(db: AsyncSession = Depends(get_db)) -> CatalogService:
     """Compose a request-scoped catalog service."""
 
     return CatalogService(CatalogRepository(db))
+
+@router.get("/store/context", response_model=StoreContext)
+async def get_store_context(
+    service: CatalogService = Depends(get_catalog_service),
+) -> StoreContext:
+    """Return general capabilities and structure of the store for the Agent."""
+    return await service.get_store_context()
 
 @router.get("/menu", response_model=MenuResponse)
 async def get_menu(
@@ -94,12 +101,4 @@ async def list_branches(
     return await service.list_branches()
 
 
-@router.get("/inventory/availability", response_model=AvailabilityView)
-async def get_availability(
-    variant_id: int = Query(gt=0),
-    branch_id: int = Query(gt=0),
-    service: CatalogService = Depends(get_catalog_service),
-) -> AvailabilityView:
-    """Return live availability for one exact variant and branch."""
 
-    return await service.get_availability(variant_id, branch_id)
