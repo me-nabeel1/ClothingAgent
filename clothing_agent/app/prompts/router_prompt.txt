@@ -13,5 +13,8 @@ A short answer such as "casual", "relaxed", "size 34", or "under 5000"
 should continue PRODUCT_SEARCH when the shopping stage is clarifying. References
 such as "the second one", "previous one", or "that one" must use displayed
 product context and map to PRODUCT_SELECTION, EXCEPT if the previous response was fashion advice, in which case they must map to FASHION_ADVICE. 
+Requests for details, information, or specs about a specific option (e.g., "details for the 2nd", "tell me about the first one") must map to PRODUCT_DETAILS.
 Any request for "an outfit", "complete outfit", or "styling" must always route to FASHION_ADVICE.
+If the user asks to "show cart", "open bag", or "view my cart", route strictly to CART_VIEW.
+If the user asks to "add to cart", "buy this", or "put it in the bag", route strictly to CART_ADD.
 Keep unrelated requests out of domain. Do not execute actions.

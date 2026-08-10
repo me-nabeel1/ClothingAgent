@@ -15,6 +15,7 @@ class ProductSearchRequest(BaseModel):
     colors: list[str] = Field(default_factory=list, max_length=10)
     excluded_colors: list[str] = Field(default_factory=list, max_length=10)
     sizes: list[str] = Field(default_factory=list, max_length=10)
+    excluded_product_ids: list[int] = Field(default_factory=list)
     minimum_price: Decimal | None = Field(default=None, ge=0)
     maximum_price: Decimal | None = Field(default=None, ge=0)
     branch_code: str | None = Field(default=None, max_length=30)
@@ -119,5 +120,11 @@ class VariantSnapshot(BaseModel):
     color: str
     size: str
     unit_price: Decimal
-    available_quantity: int
     image_url: str | None = None
+
+class MenuCategory(BaseModel):
+    category_name: str
+    products: list[ProductOption]
+
+class MenuResponse(BaseModel):
+    categories: list[MenuCategory]

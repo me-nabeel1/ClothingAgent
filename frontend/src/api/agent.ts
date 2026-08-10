@@ -40,6 +40,10 @@ export async function getClothingAppHealth() {
   return requestJson<{ status: string }>(`${CLOTHING_APP_URL}/health/ready`);
 }
 
+export async function getMenu() {
+  return requestJson<{ categories: { category_name: string; products: any[] }[] }>(`${CLOTHING_APP_URL}/api/v1/menu`);
+}
+
 export function resolveProductImage(imageUrl: string | null): string | null {
   if (!imageUrl) return null;
   const value = imageUrl.trim();

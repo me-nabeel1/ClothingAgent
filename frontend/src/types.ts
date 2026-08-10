@@ -84,6 +84,7 @@ export interface ChatTurnResponse {
   products: ProductOption[];
   cart: CartView | null;
   suggested_actions: string[];
+  ui_actions: string[];
 }
 
 export interface TimelineMessage {
@@ -95,6 +96,7 @@ export interface TimelineMessage {
   suggestedActions?: string[];
   activeAgent?: string;
   intent?: string;
+  uiActions?: string[];
 }
 
 export interface HealthStatus {

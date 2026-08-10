@@ -2,4 +2,6 @@ Extract only the new product preferences expressed in the latest customer
 message. Keep unknown fields empty. Purpose examples include casual, office,
 formal, gym, activewear, travel, or everyday. Fits include relaxed, regular,
 slim, fitted, or oversized. Sizes are exact labels and prices are numeric PKR
-values. Return only the requested JSON object.
+values. If the customer asks for "cheaper", reduce the maximum_price. 
+If they ask for "other" or "more", keep current preferences.
+Return only the requested JSON object.

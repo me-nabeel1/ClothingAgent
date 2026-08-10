@@ -12,6 +12,7 @@ from app.catalog.schemas import (
     ProductDetails,
     ProductSearchRequest,
     ProductSearchResponse,
+    MenuResponse,
 )
 from app.catalog.service import CatalogService
 from app.database import get_db
@@ -23,6 +24,14 @@ def get_catalog_service(db: AsyncSession = Depends(get_db)) -> CatalogService:
     """Compose a request-scoped catalog service."""
 
     return CatalogService(CatalogRepository(db))
+
+@router.get("/menu", response_model=MenuResponse)
+async def get_menu(
+    service: CatalogService = Depends(get_catalog_service),
+) -> MenuResponse:
+    """Return a menu of products grouped by predefined categories."""
+    menu = await service.get_menu()
+    return MenuResponse(categories=menu)
 
 
 @router.get("/products", response_model=ProductSearchResponse)

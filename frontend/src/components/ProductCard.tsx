@@ -1,6 +1,7 @@
 import { Check, PackageCheck, ShoppingBag } from "lucide-react";
 import { useEffect, useState } from "react";
 import { resolveProductImage } from "../api/agent";
+import { ProductDetailsModal } from "./ProductDetailsModal";
 import type { ProductOption } from "../types";
 
 interface ProductCardProps {
@@ -21,6 +22,7 @@ function formatCurrency(value: string | number) {
 export function ProductCard({ product, position, disabled, onAction }: ProductCardProps) {
   const resolvedImage = resolveProductImage(product.image_url);
   const [imageFailed, setImageFailed] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => setImageFailed(false), [resolvedImage]);
 
@@ -94,12 +96,20 @@ export function ProductCard({ product, position, disabled, onAction }: ProductCa
             type="button"
             className="button button--ghost"
             disabled={disabled}
-            onClick={() => onAction(`Tell me more about option ${position}`)}
+            onClick={() => {
+              setDetailsOpen(true);
+              onAction(`Tell me more about option ${position}`);
+            }}
           >
             Details
           </button>
         </div>
       </div>
+      <ProductDetailsModal
+        product={product}
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+      />
     </article>
   );
 }

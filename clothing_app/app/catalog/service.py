@@ -85,6 +85,19 @@ class CatalogService:
             relaxed_constraints=relaxed,
         )
 
+    async def get_menu(self) -> list[dict[str, Any]]:
+        """Return a menu of products grouped by predefined categories."""
+        categories = ["T-Shirts", "Shirts", "Pants", "Jeans", "Shorts", "Trousers", "Jackets", "Hoodies"]
+        menu = []
+        for cat in categories:
+            res = await self.search(ProductSearchRequest(category=cat, limit=10, in_stock_only=True, allow_relaxation=False))
+            if res.products:
+                menu.append({
+                    "category_name": cat,
+                    "products": res.products
+                })
+        return menu
+
     async def get_product(self, product_id: int) -> ProductDetails:
         """Return product metadata and all active branch-specific options."""
 

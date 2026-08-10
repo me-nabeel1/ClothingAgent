@@ -91,6 +91,7 @@ export function useChat() {
           suggestedActions: response.suggested_actions,
           activeAgent: response.active_agent,
           intent: response.intent,
+          uiActions: response.ui_actions || [],
         },
       ]);
       if (response.cart) setCart(response.cart);

@@ -25,4 +25,5 @@ class AgentResult(BaseModel):
     products: list[ProductOption] = Field(default_factory=list)
     cart: CartView | None = None
     suggested_actions: list[str] = Field(default_factory=list)
+    ui_actions: list[str] = Field(default_factory=list)
     state_updates: dict[str, Any] = Field(default_factory=dict)

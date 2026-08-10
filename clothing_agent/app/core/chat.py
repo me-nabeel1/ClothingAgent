@@ -34,6 +34,7 @@ class ChatTurnResponse(BaseModel):
     products: list[ProductOption] = Field(default_factory=list)
     cart: CartView | None = None
     suggested_actions: list[str] = Field(default_factory=list)
+    ui_actions: list[str] = Field(default_factory=list)
 
 
 class OrchestratorService:
@@ -73,6 +74,7 @@ class OrchestratorService:
                     reply=assistant_message.content,
                     active_agent="sales",
                     intent="greeting",
+                    ui_actions=[],
                 )
             conversation_id = state.conversation_id
         else:
@@ -94,6 +96,7 @@ class OrchestratorService:
                 reply=assistant_message.content,
                 active_agent="sales",
                 intent="greeting",
+                ui_actions=[],
             )
 
 
@@ -165,6 +168,7 @@ class OrchestratorService:
                 products=result.products,
                 cart=result.cart,
                 suggested_actions=result.suggested_actions,
+                ui_actions=result.ui_actions,
             )
         except Exception:
             logger.exception(

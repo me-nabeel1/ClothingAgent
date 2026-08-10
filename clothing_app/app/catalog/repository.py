@@ -69,6 +69,8 @@ class CatalogRepository:
                     [value.lower() for value in request.excluded_colors]
                 )
             )
+        if request.excluded_product_ids:
+            conditions.append(Product.product_id.not_in(request.excluded_product_ids))
         if request.sizes:
             conditions.append(Size.size_label.in_(request.sizes))
         if request.minimum_price is not None:

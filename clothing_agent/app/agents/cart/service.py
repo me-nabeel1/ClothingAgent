@@ -53,11 +53,12 @@ class CartAgent:
                 return AgentResult(
                     reply="Your cart is empty.",
                     cart=cart,
+                    ui_actions=["OPEN_CART"],
                     state_updates={"cart_id": cart.cart_id},
                 )
             cart = await self._client.get_cart(cart_id)
             assert isinstance(cart, CartView)
-            return AgentResult(reply=self._cart_summary(cart), cart=cart)
+            return AgentResult(reply=self._cart_summary(cart), cart=cart, ui_actions=["OPEN_CART"])
 
         extraction = await self._extract(request)
 
@@ -87,6 +88,7 @@ class CartAgent:
             return AgentResult(
                 reply=f"Added {extraction.quantity} × {selected.product_name} to your cart.",
                 cart=cart,
+                ui_actions=["OPEN_CART"],
                 state_updates={"cart_id": cart.cart_id},
                 suggested_actions=["View my cart", "Continue shopping"],
             )
@@ -125,7 +127,7 @@ class CartAgent:
             assert isinstance(updated, CartView)
             return AgentResult(reply=f"Removed {item.product_name} from your cart.", cart=updated)
 
-        return AgentResult(reply=self._cart_summary(cart), cart=cart)
+        return AgentResult(reply=self._cart_summary(cart), cart=cart, ui_actions=["OPEN_CART"])
 
     async def _extract(self, request: AgentRequest) -> CartActionExtraction:
         """Extract positions and quantity with a deterministic fallback."""

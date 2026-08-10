@@ -57,7 +57,7 @@ SEMANTIC_TAGS = {
     "comfortable", "breathable", "summer", "travel", "formal", "office",
     "gym", "lightweight", "casual", "everyday", "winter", "smart",
 }
-ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
+ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5}
 BRANCH_HINTS = {"branch", "store", "lahore", "karachi", "islamabad", "gulberg", "dha", "blue area"}
 logger = logging.getLogger(__name__)
 audit = logging.getLogger("sales_audit")
@@ -135,7 +135,7 @@ class ShoppingAgent:
             )
 
         normalized = await self._normalize_branch(preferences, request.message)
-        search_request = self._to_search_request(normalized)
+        search_request = self._to_search_request(normalized, request.context)
         audit.info(
             "inventory_search_started",
             extra={
@@ -210,7 +210,7 @@ class ShoppingAgent:
             preferences.materials.append(details.material)
         if details.fit and details.fit not in preferences.fits:
             preferences.fits.append(details.fit)
-        search_request = self._to_search_request(preferences, limit=self._config.displayed_product_limit + 2)
+        search_request = self._to_search_request(preferences, request.context, limit=self._config.displayed_product_limit + 2)
         result = await self._client.search_products(search_request)
         assert isinstance(result, ProductSearchResponse)
         alternatives = [item for item in result.products if item.product_id != reference.product_id]
@@ -389,6 +389,12 @@ class ShoppingAgent:
                 ["Shirts", "Trousers", "Activewear"],
             )
 
+        if not preferences.sizes:
+            return (
+                "What size are you looking for?",
+                ["S", "M", "L", "XL"]
+            )
+
         # Ask one purpose question only on the first broad category request.
         # After the customer's answer, show products and refine visually.
         if (
@@ -465,6 +471,7 @@ class ShoppingAgent:
     def _to_search_request(
         self,
         preferences: ShoppingPreferences,
+        context: ConversationState,
         *,
         limit: int | None = None,
     ) -> ProductSearchRequest:
@@ -489,6 +496,7 @@ class ShoppingAgent:
             materials=preferences.materials,
             fits=preferences.fits,
             semantic_tags=preferences.semantic_tags,
+            excluded_product_ids=[p.product_id for p in context.displayed_products] + [p.product_id for p in context.previous_displayed_products],
             in_stock_only=True,
             allow_relaxation=True,
             limit=limit or self._config.displayed_product_limit,
@@ -556,10 +564,12 @@ class ShoppingAgent:
         for word, position in ORDINALS.items():
             if word in text:
                 return next((item for item in current if item.position == position), None)
-        number = re.search(r"(?:number|option|product)\s*(\d+)", text)
+        
+        number = re.search(r"\b(\d+)(?:st|nd|rd|th)?\b", text)
         if number:
             position = int(number.group(1))
             return next((item for item in current if item.position == position), None)
+            
         for item in current:
             if item.product_name.lower() in text:
                 return item

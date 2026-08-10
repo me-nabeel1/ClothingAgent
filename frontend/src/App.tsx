@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CartPanel } from "./components/CartPanel";
+import { MenuLanding } from "./components/MenuLanding";
 import { Composer } from "./components/Composer";
 import { MessageBubble } from "./components/MessageBubble";
 import { useChat } from "./hooks/useChat";
@@ -30,6 +31,7 @@ export default function App() {
   } = useChat();
 
   const [cartOpen, setCartOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"MENU" | "AGENT">("MENU");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,6 +39,11 @@ export default function App() {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
+
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.uiActions?.includes("OPEN_CART")) {
+      setCartOpen(true);
+    }
   }, [messages, isSending]);
 
   const appName = import.meta.env.VITE_APP_NAME ?? "Atelier AI";
@@ -65,7 +72,17 @@ export default function App() {
           >
             <MessageCirclePlus size={16} /> New chat
           </button>
-          <button className="cart-button" type="button" onClick={() => setCartOpen(true)}>
+          <button className="cart-button" type="button" onClick={() => {
+            if (viewMode === "MENU") {
+              setViewMode("AGENT");
+            } else {
+              setViewMode("MENU");
+            }
+            setCartOpen(false);
+          }}>
+            <span>{viewMode === "MENU" ? "Agent" : "Menu"}</span>
+          </button>
+          <button className="cart-button" type="button" onClick={() => { setCartOpen(true); }}>
             <ShoppingBag size={18} />
             <span>Bag</span>
             <b>{cart?.total_quantity ?? 0}</b>
@@ -74,7 +91,13 @@ export default function App() {
       </header>
 
       <main className="workspace">
-        <section className="chat-panel">
+        {viewMode === "MENU" ? (
+          <MenuLanding onEnterAgent={(msg) => {
+            setViewMode("AGENT");
+            if (msg) sendMessage(msg);
+          }} />
+        ) : (
+          <section className="chat-panel">
           <div className="messages" ref={scrollRef}>
             {messages.length === 0 ? (
               <div className="empty-state">
@@ -126,6 +149,7 @@ export default function App() {
             <Composer disabled={isSending} onSend={(value) => void sendMessage(value)} />
           </div>
         </section>
+        )}
 
         <CartPanel
           cart={cart}
@@ -134,11 +158,12 @@ export default function App() {
           onClose={() => setCartOpen(false)}
           onAction={(value) => void sendMessage(value)}
         />
+        
         {cartOpen && (
           <button
             className="cart-backdrop"
             type="button"
-            aria-label="Close cart"
+            aria-label="Close panel"
             onClick={() => setCartOpen(false)}
           />
         )}
