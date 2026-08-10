@@ -44,7 +44,7 @@ async def list_products(
     maximum_price: Decimal | None = Query(default=None, ge=0),
     branch_code: str | None = Query(default=None, max_length=30),
     in_stock_only: bool = True,
-    limit: int = Query(default=12, ge=1, le=30),
+    limit: int = Query(default=12, ge=1, le=500),
     service: CatalogService = Depends(get_catalog_service),
 ) -> ProductSearchResponse:
     """List products with optional filters for normal non-chat browsing."""

@@ -41,24 +41,34 @@ class CatalogRepository:
             Product.product_status == "ACTIVE",
             ProductVariant.is_active.is_(True),
             Branch.is_active.is_(True),
+            Product.gender.in_(["MEN", "UNISEX"]),
         ]
         if product_id is not None:
             conditions.append(Product.product_id == product_id)
-        if request.category:
-            category_term = request.category.strip().lower()
+        if request.categories:
+            matching_categories = []
             parent = aliased(Category)
-            matching_categories = (
-                select(Category.category_id)
-                .outerjoin(parent, Category.parent_category_id == parent.category_id)
-                .where(
-                    or_(
-                        func.lower(Category.category_name).contains(category_term),
-                        func.lower(Category.category_code).contains(category_term),
-                        func.lower(parent.category_name).contains(category_term),
-                    )
+            for category in request.categories:
+                category_term = category.strip().lower()
+                conditions_for_category = [
+                    func.lower(Category.category_name).contains(category_term),
+                    func.lower(Category.category_code).contains(category_term),
+                    func.lower(parent.category_name).contains(category_term),
+                ]
+                if category_term in ("pants", "trouser", "trousers"):
+                    conditions_for_category.extend([
+                        func.lower(Category.category_name).contains("pants"),
+                        func.lower(Category.category_name).contains("trouser"),
+                    ])
+                    
+                query = (
+                    select(Category.category_id)
+                    .outerjoin(parent, Category.parent_category_id == parent.category_id)
+                    .where(or_(*conditions_for_category))
                 )
-            )
-            conditions.append(Product.category_id.in_(matching_categories))
+                matching_categories.append(query)
+            
+            conditions.append(or_(*[Product.category_id.in_(q) for q in matching_categories]))
         if request.colors:
             conditions.append(
                 func.lower(Color.color_name).in_([value.lower() for value in request.colors])
@@ -111,7 +121,7 @@ class CatalogRepository:
 
         structured_filters_present = any(
             (
-                request.category,
+                request.categories,
                 request.colors,
                 request.excluded_colors,
                 request.sizes,
@@ -177,7 +187,11 @@ class CatalogRepository:
                 Product.description,
             )
             .join(Category, Category.category_id == Product.category_id)
-            .where(Product.product_id == product_id, Product.product_status == "ACTIVE")
+            .where(
+                Product.product_id == product_id, 
+                Product.product_status == "ACTIVE",
+                Product.gender.in_(["MEN", "UNISEX"])
+            )
             .limit(1)
         )
         row = result.mappings().first()
@@ -223,6 +237,7 @@ class CatalogRepository:
                 ProductVariant.variant_id == variant_id,
                 Branch.branch_id == branch_id,
                 Product.product_status == "ACTIVE",
+                Product.gender.in_(["MEN", "UNISEX"]),
                 ProductVariant.is_active.is_(True),
                 Branch.is_active.is_(True),
             )

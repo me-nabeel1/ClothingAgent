@@ -20,4 +20,5 @@ CART_EXTRACTION_PROMPT = _load_prompt("cart_extraction_prompt")
 SEARCH_EXTRACTION_PROMPT = f"{DOMAIN_POLICY}\n{_load_prompt('search_extraction_prompt')}"
 SHOPPING_RESPONSE_PROMPT = f"{DOMAIN_POLICY}\n{GROUNDING_POLICY}\n{_load_prompt('shopping_response_prompt')}"
 ROUTER_PROMPT = _load_prompt("router_prompt")
+CLARIFICATION_PROMPT = f"{DOMAIN_POLICY}\n{_load_prompt('clarification_prompt')}"
 

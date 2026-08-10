@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 from decimal import Decimal
 
 from app.agents.schemas import AgentRequest, AgentResult
@@ -26,7 +27,7 @@ from app.core.conversation import (
 from app.core.errors import AgentError, DependencyUnavailableError
 from app.core.routing import Intent
 from app.llm.client import LLMClient, LLMMessage
-from app.llm.prompts import SEARCH_EXTRACTION_PROMPT, SHOPPING_RESPONSE_PROMPT
+from app.llm.prompts import SEARCH_EXTRACTION_PROMPT, SHOPPING_RESPONSE_PROMPT, CLARIFICATION_PROMPT
 from pydantic import BaseModel, Field
 
 COLORS = {
@@ -63,11 +64,19 @@ logger = logging.getLogger(__name__)
 audit = logging.getLogger("sales_audit")
 
 
+@dataclass
+class ClarificationNeed:
+    missing_field: str
+    context_hint: str
+    suggested_actions: list[str]
+    fallback_question: str
+
+
 class ProductSearchExtraction(BaseModel):
     """Product constraints extracted from one customer turn."""
 
-    query_text: str | None = None
-    category: str | None = None
+    query_text: str | None = Field(default=None)
+    categories: list[str] = Field(default_factory=list)
     purpose: str | None = None
     occasion: str | None = None
     colors: list[str] = Field(default_factory=list)
@@ -114,19 +123,35 @@ class ShoppingAgent:
             request.message,
         )
         if clarification and request.context.clarification_count < self._config.maximum_clarification_questions:
-            question, actions = clarification
             audit.info(
                 "clarification_asked",
                 extra={
                     "event": "clarification_asked",
                     "conversation_id": str(request.context.conversation_id),
                     "clarification_count": request.context.clarification_count + 1,
-                    "category": preferences.category,
+                    "categories": preferences.categories,
                 },
             )
+            reply = clarification.fallback_question
+            if self._llm.configured:
+                try:
+                    messages = [LLMMessage(role="system", content=CLARIFICATION_PROMPT)]
+                    for msg in request.context.messages[-self._config.recent_message_limit :]:
+                        messages.append(LLMMessage(role=msg.role, content=msg.content))
+                    
+                    system_context = json.dumps({
+                        "missing_field": clarification.missing_field,
+                        "context_hint": clarification.context_hint,
+                    })
+                    messages.append(LLMMessage(role="system", content=f"Clarification Needed: {system_context}"))
+                    reply = (await self._llm.generate_text(messages, max_tokens=100)).strip()
+                except DependencyUnavailableError:
+                    if not self._config.allow_local_fallback:
+                        raise
+
             return AgentResult(
-                reply=question,
-                suggested_actions=actions,
+                reply=reply,
+                suggested_actions=clarification.suggested_actions,
                 state_updates={
                     "preferences": preferences,
                     "shopping_stage": "clarifying",
@@ -278,7 +303,19 @@ class ShoppingAgent:
 
         if self._llm.configured:
             try:
-                messages = [LLMMessage(role="system", content=SEARCH_EXTRACTION_PROMPT)]
+                try:
+                    menu = await self._client.get_menu()
+                    valid_cats = [cat['category_name'] for cat in menu.get('categories', [])]
+                    cats_str = ", ".join(valid_cats) if valid_cats else "shirts, t-shirts, polo shirts, formal shirts, cotton shirts, trousers, pants, cotton pants, cargo pants, jeans, shorts, hoodies, jackets, gym wear, track pants"
+                except Exception:
+                    cats_str = "shirts, t-shirts, polo shirts, formal shirts, cotton shirts, trousers, pants, cotton pants, cargo pants, jeans, shorts, hoodies, jackets, gym wear, track pants"
+                    
+                dynamic_prompt = SEARCH_EXTRACTION_PROMPT.replace(
+                    "shirts, t-shirts, polo shirts, formal shirts, cotton shirts, trousers, pants, cotton pants, cargo pants, jeans, shorts, hoodies, jackets, gym wear, track pants", 
+                    cats_str
+                )
+                
+                messages = [LLMMessage(role="system", content=dynamic_prompt)]
                 messages.append(
                     LLMMessage(
                         role="system",
@@ -336,13 +373,13 @@ class ShoppingAgent:
 
         merged = current.model_copy(deep=True)
         for field in (
-            "category", "purpose", "occasion", "minimum_price",
+            "purpose", "occasion", "minimum_price",
             "maximum_price", "branch_code",
         ):
             value = getattr(extraction, field)
             if value is not None:
                 setattr(merged, field, value)
-        for field in ("colors", "sizes", "materials", "fits", "semantic_tags"):
+        for field in ("categories", "colors", "sizes", "materials", "fits", "semantic_tags"):
             incoming = getattr(extraction, field)
             if incoming:
                 existing = getattr(merged, field)
@@ -358,7 +395,7 @@ class ShoppingAgent:
         preferences: ShoppingPreferences,
         count: int,
         message: str,
-    ) -> tuple[str, list[str]] | None:
+    ) -> ClarificationNeed | None:
         """Ask only the highest-value question before showing products.
 
         The agent uses progressive disclosure: once it knows the product type
@@ -370,6 +407,13 @@ class ShoppingAgent:
         if count >= self._config.maximum_clarification_questions:
             return None
         text = message.lower()
+        
+        explicit_show = any(phrase in text for phrase in ["show", "dikhao", "yes", "dikhayein", "han", "dikhain"])
+        has_strong_context = bool(preferences.semantic_tags or preferences.occasion)
+        
+        if explicit_show or has_strong_context:
+            return None
+            
         has_specific_constraint = bool(
             preferences.colors
             or preferences.sizes
@@ -378,21 +422,27 @@ class ShoppingAgent:
             or preferences.fits
             or preferences.branch_code
         )
-        if not preferences.category:
+        if not preferences.categories:
             if preferences.occasion or "outfit" in text:
-                return (
-                    "Let’s narrow it quickly—shirts, trousers, or activewear?",
-                    ["Shirts", "Trousers", "Activewear"],
+                return ClarificationNeed(
+                    missing_field="category",
+                    context_hint="Ask if they want shirts, trousers, or activewear.",
+                    suggested_actions=["Shirts", "Trousers", "Activewear"],
+                    fallback_question="Let’s narrow it quickly—shirts, trousers, or activewear?"
                 )
-            return (
-                "What should I pull first—shirts, trousers, or activewear?",
-                ["Shirts", "Trousers", "Activewear"],
+            return ClarificationNeed(
+                missing_field="category",
+                context_hint="Ask what they want to look at first—shirts, trousers, or activewear.",
+                suggested_actions=["Shirts", "Trousers", "Activewear"],
+                fallback_question="What should I pull first—shirts, trousers, or activewear?"
             )
 
         if not preferences.sizes:
-            return (
-                "What size are you looking for?",
-                ["S", "M", "L", "XL"]
+            return ClarificationNeed(
+                missing_field="size",
+                context_hint="Ask the user what size they are looking for (e.g. S, M, L, XL).",
+                suggested_actions=["S", "M", "L", "XL"],
+                fallback_question="What size are you looking for?"
             )
 
         # Ask one purpose question only on the first broad category request.
@@ -403,15 +453,19 @@ class ShoppingAgent:
             and not preferences.occasion
             and not has_specific_constraint
         ):
-            category = preferences.category.lower()
+            category = preferences.categories[0].lower() if preferences.categories else ""
             if "shirt" in category:
-                return (
-                    "Sure—casual, office/formal, gym, or a specific occasion?",
-                    ["Casual", "Office/formal", "Gym", "Special occasion"],
+                return ClarificationNeed(
+                    missing_field="purpose",
+                    context_hint="Ask if they need it for casual, office/formal, gym, or a specific occasion.",
+                    suggested_actions=["Casual", "Office/formal", "Gym", "Special occasion"],
+                    fallback_question="Sure—casual, office/formal, gym, or a specific occasion?"
                 )
-            return (
-                "What’s the main use—everyday, office, gym, or an occasion?",
-                ["Everyday", "Office", "Gym", "Special occasion"],
+            return ClarificationNeed(
+                missing_field="purpose",
+                context_hint="Ask for the main use: everyday, office, gym, or an occasion.",
+                suggested_actions=["Everyday", "Office", "Gym", "Special occasion"],
+                fallback_question="What’s the main use—everyday, office, gym, or an occasion?"
             )
         return None
 
@@ -479,7 +533,7 @@ class ShoppingAgent:
 
         summary = " ".join(
             str(value) for value in (
-                preferences.category,
+                " ".join(preferences.categories),
                 preferences.purpose,
                 preferences.occasion,
                 " ".join(preferences.semantic_tags),
@@ -487,7 +541,7 @@ class ShoppingAgent:
         )
         return ProductSearchRequest(
             query_text=summary or None,
-            category=preferences.category,
+            categories=preferences.categories,
             colors=preferences.colors,
             sizes=preferences.sizes,
             minimum_price=preferences.minimum_price,

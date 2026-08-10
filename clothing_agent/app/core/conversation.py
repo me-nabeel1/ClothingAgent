@@ -34,7 +34,7 @@ class DisplayedProduct(BaseModel):
 
 
 class ShoppingPreferences(BaseModel):
-    category: str | None = None
+    categories: list[str] = Field(default_factory=list)
     purpose: str | None = None
     occasion: str | None = None
     colors: list[str] = Field(default_factory=list)

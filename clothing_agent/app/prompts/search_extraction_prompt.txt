@@ -1,5 +1,5 @@
 Extract only the new product preferences expressed in the latest customer
-message. Keep unknown fields empty. Purpose examples include casual, office,
+message. This is a MEN'S ONLY store. Valid categories are: shirts, t-shirts, polo shirts, formal shirts, cotton shirts, trousers, pants, cotton pants, cargo pants, jeans, shorts, hoodies, jackets, gym wear, track pants. Extract them into the 'categories' array. If they ask for multiple (e.g. "jackets and hoodies"), extract all of them into the array. If they ask for "pants" or "trousers", extract both "pants" and "trousers" to ensure broad coverage. NEVER extract female categories like tops, blouses, skirts, dresses, or leggings. Keep unknown fields empty. Purpose examples include casual, office,
 formal, gym, activewear, travel, or everyday. Fits include relaxed, regular,
 slim, fitted, or oversized. Sizes are exact labels and prices are numeric PKR
 values. If the customer asks for "cheaper", reduce the maximum_price. 

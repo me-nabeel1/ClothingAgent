@@ -54,6 +54,10 @@ class CatalogService:
         rows = await self._repository.search_rows(working)
         relaxed: list[str] = []
 
+        if request.allow_relaxation and not rows and request.sizes:
+            working = working.model_copy(update={"sizes": []})
+            relaxed.append("size")
+            rows = await self._repository.search_rows(working)
         if request.allow_relaxation and not rows and request.colors:
             working = working.model_copy(update={"colors": []})
             relaxed.append("color")
@@ -86,16 +90,42 @@ class CatalogService:
         )
 
     async def get_menu(self) -> list[dict[str, Any]]:
-        """Return a menu of products grouped by predefined categories."""
-        categories = ["T-Shirts", "Shirts", "Pants", "Jeans", "Shorts", "Trousers", "Jackets", "Hoodies"]
+        """Return a menu of products grouped by actual database categories.
+
+        Uses a single wide search instead of N sequential per-category queries
+        to minimize latency on the landing page.
+        """
+        # Single wide search: fetch a generous batch of in-stock products
+        wide = await self.search(
+            ProductSearchRequest(
+                in_stock_only=True,
+                allow_relaxation=False,
+                limit=500,
+            )
+        )
+        # Group by category
+        groups: dict[str, list] = {}
+        for product in wide.products:
+            cat = product.category
+            if cat not in groups:
+                groups[cat] = []
+            if len(groups[cat]) < 10:
+                groups[cat].append(product)
+        # Stable category ordering
+        preferred_order = [
+            "T-Shirts", "Polo Shirts", "Cotton Shirts", "Formal Shirts",
+            "Jeans", "Trousers", "Cotton Pants", "Cargo Pants",
+            "Shorts", "Hoodies", "Gym Wear", "Track Pants",
+        ]
         menu = []
-        for cat in categories:
-            res = await self.search(ProductSearchRequest(category=cat, limit=10, in_stock_only=True, allow_relaxation=False))
-            if res.products:
-                menu.append({
-                    "category_name": cat,
-                    "products": res.products
-                })
+        seen = set()
+        for cat_name in preferred_order:
+            if cat_name in groups:
+                menu.append({"category_name": cat_name, "products": groups[cat_name]})
+                seen.add(cat_name)
+        for cat_name, products in groups.items():
+            if cat_name not in seen:
+                menu.append({"category_name": cat_name, "products": products})
         return menu
 
     async def get_product(self, product_id: int) -> ProductDetails:
@@ -264,9 +294,14 @@ class CatalogService:
         score = 0.0
         reasons: list[str] = []
 
-        if request.category:
+        if request.categories:
             score += 25
             reasons.append("Category match")
+            
+            cat_name = item.get("category", "").lower()
+            if any(req_cat.lower() == cat_name for req_cat in request.categories):
+                score += 15
+                reasons.append("Exact category match")
         if request.sizes:
             score += 20
             reasons.append("Requested size")

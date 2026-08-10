@@ -11,7 +11,7 @@ class ProductSearchRequest(BaseModel):
     """Structured search criteria accepted from the UI or clothing agent."""
 
     query_text: str | None = Field(default=None, max_length=300)
-    category: str | None = Field(default=None, max_length=100)
+    categories: list[str] = Field(default_factory=list)
     colors: list[str] = Field(default_factory=list, max_length=10)
     excluded_colors: list[str] = Field(default_factory=list, max_length=10)
     sizes: list[str] = Field(default_factory=list, max_length=10)
@@ -24,7 +24,7 @@ class ProductSearchRequest(BaseModel):
     semantic_tags: list[str] = Field(default_factory=list, max_length=20)
     in_stock_only: bool = True
     allow_relaxation: bool = True
-    limit: int = Field(default=8, ge=1, le=30)
+    limit: int = Field(default=8, ge=1, le=500)
 
 
 class BranchView(BaseModel):
@@ -120,6 +120,7 @@ class VariantSnapshot(BaseModel):
     color: str
     size: str
     unit_price: Decimal
+    available_quantity: int
     image_url: str | None = None
 
 class MenuCategory(BaseModel):

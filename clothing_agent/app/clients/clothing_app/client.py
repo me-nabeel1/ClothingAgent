@@ -72,6 +72,10 @@ class ClothingAppClient:
         data = await self._request("GET", "/api/v1/branches", response_model=None)
         return [BranchView.model_validate(item) for item in data]
 
+    async def get_menu(self) -> dict:
+        """Retrieve the catalog menu."""
+        return await self._request("GET", "/api/v1/menu", response_model=None)
+
     async def get_availability(
         self,
         variant_id: int,

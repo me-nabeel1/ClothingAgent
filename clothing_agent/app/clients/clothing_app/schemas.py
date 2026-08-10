@@ -13,7 +13,7 @@ class ProductSearchRequest(BaseModel):
     """Structured product-search payload accepted by the clothing application."""
 
     query_text: str | None = Field(default=None, max_length=300)
-    category: str | None = Field(default=None, max_length=100)
+    categories: list[str] = Field(default_factory=list)
     colors: list[str] = Field(default_factory=list)
     excluded_colors: list[str] = Field(default_factory=list)
     sizes: list[str] = Field(default_factory=list)
