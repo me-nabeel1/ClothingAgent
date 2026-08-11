@@ -23,7 +23,7 @@ class ExtractedFilters(BaseModel):
     sizes: dict[str, str] = Field(default_factory=dict, description="e.g. {'shirt': 'L', 'pants': '34'}")
     materials: list[str] = Field(default_factory=list)
     fits: list[str] = Field(default_factory=list)
-    budget: Budget = Field(default_factory=Budget)
+    budget: Optional[Budget] = Field(default=None)
     branch: Optional[str] = None
     specific_article: Optional[str] = Field(None, description="Exact article code if mentioned (e.g., NS-SH-001)")
 

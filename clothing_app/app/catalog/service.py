@@ -50,8 +50,8 @@ class CatalogService:
         rows = await self._repository.search_rows(working)
         relaxed: list[str] = []
 
-        if request.allow_relaxation and not rows and request.sizes:
-            working = working.model_copy(update={"sizes": []})
+        if request.allow_relaxation and not rows and request.size_mapping:
+            working = working.model_copy(update={"size_mapping": {}})
             relaxed.append("size")
             rows = await self._repository.search_rows(working)
         if request.allow_relaxation and not rows and request.colors:

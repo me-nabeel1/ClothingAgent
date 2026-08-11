@@ -196,9 +196,12 @@ class CatalogRepository:
 
         available = self._available_quantity_expression()
         
+        # Enforce max upper bound of 20
+        limit = min(request.limit, 20) if request.limit else 20
+        
         # Step 1: Find matching product IDs first to respect limit properly.
         product_query = (
-            select(Product.product_id)
+            select(Product.product_id, Category.category_id)
             .select_from(ProductVariant)
             .join(Product, Product.product_id == ProductVariant.product_id)
             .join(Category, Category.category_id == Product.category_id)
@@ -216,17 +219,49 @@ class CatalogRepository:
             
         product_query = (
             product_query
-            .group_by(Product.product_id)
+            .group_by(Product.product_id, Category.category_id)
             .order_by(
                 func.max(available).desc(), 
                 func.min(ProductVariant.selling_price).asc()
             )
-            .limit(request.limit)
         )
         
-        product_ids = (await self._db.scalars(product_query)).all()
-        if not product_ids:
+        rows = (await self._db.execute(product_query)).all()
+        if not rows:
             return []
+            
+        # Group product IDs by category to enforce deterministic distribution
+        from collections import defaultdict
+        category_to_products = defaultdict(list)
+        for row in rows:
+            category_to_products[row.category_id].append(row.product_id)
+            
+        selected_ids = []
+        remaining_limit = limit
+        
+        # Round-robin selection to balance across categories
+        while remaining_limit > 0 and category_to_products:
+            per_cat = max(1, remaining_limit // len(category_to_products))
+            cats_to_remove = []
+            
+            for cat_id, p_ids in list(category_to_products.items()):
+                take_count = min(len(p_ids), per_cat)
+                if take_count > 0:
+                    selected_ids.extend(p_ids[:take_count])
+                    category_to_products[cat_id] = p_ids[take_count:]
+                    remaining_limit -= take_count
+                    
+                if not category_to_products[cat_id]:
+                    cats_to_remove.append(cat_id)
+                    
+                if remaining_limit <= 0:
+                    break
+                    
+            for cat in cats_to_remove:
+                if cat in category_to_products:
+                    del category_to_products[cat]
+                    
+        product_ids = selected_ids
 
         # Step 2: Fetch full flattened details for these specific products
         result = await self._db.execute(

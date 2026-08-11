@@ -90,8 +90,9 @@ class LLMClient:
             try:
                 return response_model.model_validate(json.loads(match.group(0)))
             except Exception as nested:
+                print(f"FAILED TO PARSE JSON: {content}")
                 raise DependencyUnavailableError(
-                    "The LLM returned an invalid structured response.",
+                    f"The LLM returned an invalid structured response: {content}",
                     code="LLM_INVALID_RESPONSE",
                 ) from nested
 

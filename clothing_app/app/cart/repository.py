@@ -21,8 +21,8 @@ class CartRepository:
             expires_at=expires_at,
         )
         self._db.add(cart)
-        await self._db.flush()
-        return cart
+        await self._db.commit()
+        return await self.require(cart.cart_id)
 
     async def get_by_session(self, session_id: str, store_id: str) -> Cart | None:
         now = datetime.now(timezone.utc)
@@ -71,7 +71,7 @@ class CartRepository:
             cart.items.append(item)
             
         cart.updated_at = datetime.now(timezone.utc)
-        await self._db.flush()
+        await self._db.commit()
         return cart
 
     async def update_quantity(self, cart_id: UUID, item_id: UUID, quantity: int) -> Cart:
@@ -81,7 +81,7 @@ class CartRepository:
             raise NotFoundError("Cart item not found.", code="CART_ITEM_NOT_FOUND")
         item.quantity = quantity
         cart.updated_at = datetime.now(timezone.utc)
-        await self._db.flush()
+        await self._db.commit()
         return cart
 
     async def remove_item(self, cart_id: UUID, item_id: UUID) -> Cart:
@@ -92,7 +92,7 @@ class CartRepository:
         await self._db.delete(item)
         cart.items.remove(item)
         cart.updated_at = datetime.now(timezone.utc)
-        await self._db.flush()
+        await self._db.commit()
         return cart
 
     async def clear(self, cart_id: UUID) -> Cart:
@@ -101,5 +101,5 @@ class CartRepository:
             await self._db.delete(item)
         cart.items.clear()
         cart.updated_at = datetime.now(timezone.utc)
-        await self._db.flush()
+        await self._db.commit()
         return cart

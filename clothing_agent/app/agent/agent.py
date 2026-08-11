@@ -100,13 +100,56 @@ class SingleAgent:
         if intent_result.intent == "search":
             products_res = await self._tools.get_products(state, intent_result.search_query)
             if products_res.products:
-                return f"Retrieved {len(products_res.products)} products matching criteria:\n{json.dumps([p.model_dump() for p in products_res.products], default=str)}"
+                lines = [f"Retrieved {len(products_res.products)} products matching criteria:"]
+                for p in products_res.products:
+                    is_avail = any(v.is_available for v in p.variants)
+                    avail_str = "Available" if is_avail else "Out of Stock"
+                    lines.append(f"- ID: {p.product_id} | Name: {p.product_name} | Price: {p.final_price} | {avail_str}")
+                return "\n".join(lines)
             return "No products found matching these criteria."
 
         elif intent_result.intent == "get_details":
             if state.selected_product_id:
                 details = await self._tools.get_product_details(state.selected_product_id)
-                return f"Product Details:\n{json.dumps(details.model_dump(), default=str)}"
+                p = details.product
+                lines = [
+                    f"Product Details for {p.product_name} (ID: {p.product_id}, Code: {p.article_code})",
+                    f"Category: {p.category} | Type: {p.product_type} | Gender: {p.gender}",
+                    f"Material: {p.material or 'N/A'} | Fit: {p.fit or 'N/A'} | Occasion: {p.occasion or 'N/A'}",
+                    f"Price: {p.base_price} | Final Price: {p.final_price} | Discount: {p.discount_amount}",
+                ]
+                if p.applied_offer:
+                    lines.append(f"Applied Offer: {p.applied_offer.offer_name} ({p.applied_offer.description})")
+                
+                # Summarize variants
+                available_colors = set()
+                available_sizes = set()
+                oos_colors = set()
+                oos_sizes = set()
+                branches_with_stock = set()
+                
+                for v in p.variants:
+                    if v.is_available:
+                        available_colors.add(v.color)
+                        available_sizes.add(v.size)
+                        for b in v.branch_availability:
+                            if b.is_available:
+                                branches_with_stock.add(b.branch_name)
+                    else:
+                        oos_colors.add(v.color)
+                        oos_sizes.add(v.size)
+                
+                lines.append(f"Available Colors: {', '.join(available_colors) if available_colors else 'None'}")
+                if oos_colors - available_colors:
+                    lines.append(f"Out of Stock Colors: {', '.join(oos_colors - available_colors)}")
+                    
+                lines.append(f"Available Sizes: {', '.join(available_sizes) if available_sizes else 'None'}")
+                if oos_sizes - available_sizes:
+                    lines.append(f"Out of Stock Sizes: {', '.join(oos_sizes - available_sizes)}")
+                    
+                lines.append(f"Available at Branches: {', '.join(branches_with_stock) if branches_with_stock else 'None'}")
+                
+                return "\n".join(lines)
             return "No product selected to get details for."
 
         elif intent_result.intent == "add_to_cart":
