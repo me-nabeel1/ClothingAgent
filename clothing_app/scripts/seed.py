@@ -43,6 +43,9 @@ async def seed_db(db: AsyncSession):
         "Outerwear": Category(category_name="Outerwear", category_code="OUTERWEAR", is_active=True),
         "Formal Wear": Category(category_name="Formal Wear", category_code="FORMAL", is_active=True),
         "Jeans": Category(category_name="Jeans", category_code="JEANS", is_active=True),
+        "Activewear": Category(category_name="Activewear", category_code="ACTIVEWEAR", is_active=True),
+        "Gym Wear": Category(category_name="Gym Wear", category_code="GYMWEAR", is_active=True),
+        "Trousers": Category(category_name="Trousers", category_code="TROUSERS", is_active=True),
     }
     db.add_all(cats.values())
     await db.flush()
@@ -95,8 +98,13 @@ async def seed_db(db: AsyncSession):
     p13 = create_product("NS-TS-002", "Polo T-Shirt", "T-Shirts", "polo", "casual", "Pique Cotton", "Regular", "Summer", 800, 2200)
     p14 = create_product("NS-JA-002", "Leather Moto Jacket", "Outerwear", "leather_jacket", "party", "Leather", "Slim", "Winter", 12000, 25000)
     p15 = create_product("NS-TR-003", "Sherwani", "Traditional", "sherwani", "wedding", "Brocade", "Tailored", "Winter", 15000, 35000)
+    p16 = create_product("NS-AW-001", "Performance Running Shorts", "Activewear", "shorts", "gym", "Polyester Blend", "Regular", "Summer", 1200, 2500)
+    p17 = create_product("NS-GW-001", "Compression Gym T-Shirt", "Gym Wear", "t_shirt", "gym", "Spandex", "Tight", "All Season", 1500, 3500)
+    p18 = create_product("NS-TR-004", "Casual Cotton Trousers", "Trousers", "trousers", "casual", "Cotton", "Relaxed", "All Season", 2000, 4800)
+    p19 = create_product("NS-AW-002", "Fleece Joggers", "Activewear", "joggers", "casual", "Fleece", "Slim", "Winter", 2200, 5000)
+    p20 = create_product("NS-GW-002", "Breathable Tank Top", "Gym Wear", "tank_top", "gym", "Mesh", "Regular", "Summer", 800, 1800)
 
-    all_products = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15]
+    all_products = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20]
     db.add_all(all_products)
     await db.flush()
 
@@ -126,6 +134,11 @@ async def seed_db(db: AsyncSession):
     add_img(p13, "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80")
     add_img(p14, "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80")
     add_img(p15, "https://images.unsplash.com/photo-1597983073493-88cd35f47448?w=500&q=80")
+    add_img(p16, "https://images.unsplash.com/photo-1533681473678-01e4a6438075?w=500&q=80")
+    add_img(p17, "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80")
+    add_img(p18, "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80")
+    add_img(p19, "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80")
+    add_img(p20, "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80")
 
     # 6. Variants and Inventory
     def create_variant(prod, col, sz, is_active=True):
@@ -244,6 +257,36 @@ async def seed_db(db: AsyncSession):
     db.add_all([v_p15_mrn_m])
     await db.flush()
     add_inv(v_p15_mrn_m, b1, 2); add_inv(v_p15_mrn_m, b2, 0); add_inv(v_p15_mrn_m, b3, 2)
+
+    # P16: Activewear Shorts
+    v_p16_blk_m = create_variant(p16, "Black", "M")
+    db.add_all([v_p16_blk_m])
+    await db.flush()
+    add_inv(v_p16_blk_m, b1, 20); add_inv(v_p16_blk_m, b2, 20); add_inv(v_p16_blk_m, b3, 20)
+
+    # P17: Gym T-Shirt
+    v_p17_nvy_l = create_variant(p17, "Navy", "L")
+    db.add_all([v_p17_nvy_l])
+    await db.flush()
+    add_inv(v_p17_nvy_l, b1, 30); add_inv(v_p17_nvy_l, b2, 30); add_inv(v_p17_nvy_l, b3, 30)
+
+    # P18: Cotton Trousers
+    v_p18_bge_34 = create_variant(p18, "Beige", "34")
+    db.add_all([v_p18_bge_34])
+    await db.flush()
+    add_inv(v_p18_bge_34, b1, 15); add_inv(v_p18_bge_34, b2, 10); add_inv(v_p18_bge_34, b3, 5)
+
+    # P19: Fleece Joggers
+    v_p19_gry_m = create_variant(p19, "Grey", "M")
+    db.add_all([v_p19_gry_m])
+    await db.flush()
+    add_inv(v_p19_gry_m, b1, 25); add_inv(v_p19_gry_m, b2, 25); add_inv(v_p19_gry_m, b3, 25)
+
+    # P20: Tank Top
+    v_p20_wht_m = create_variant(p20, "White", "M")
+    db.add_all([v_p20_wht_m])
+    await db.flush()
+    add_inv(v_p20_wht_m, b1, 40); add_inv(v_p20_wht_m, b2, 40); add_inv(v_p20_wht_m, b3, 40)
 
     # 7. Promotions
     off1 = Offer(offer_code="WELCOME10", offer_name="Welcome 10% Off", description="10% off store-wide", discount_percentage=Decimal("10.00"), benefit_type="PERCENTAGE", target_scope="STORE_WIDE", valid_from=now, is_active=True, priority=1)
