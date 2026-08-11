@@ -2,10 +2,10 @@ import { Check, PackageCheck, ShoppingBag } from "lucide-react";
 import { useEffect, useState } from "react";
 import { resolveProductImage } from "../api/agent";
 import { ProductDetailsModal } from "./ProductDetailsModal";
-import type { ProductOption } from "../types";
+import type { ProductView } from "../types";
 
 interface ProductCardProps {
-  product: ProductOption;
+  product: ProductView;
   position: number;
   disabled: boolean;
   onAction: (message: string) => void;
@@ -20,17 +20,29 @@ function formatCurrency(value: string | number) {
 }
 
 export function ProductCard({ product, position, disabled, onAction }: ProductCardProps) {
-  const resolvedImage = resolveProductImage(product.image_url);
+  const primaryImage = product.images?.[0] || null;
+  const resolvedImage = resolveProductImage(primaryImage);
   const [imageFailed, setImageFailed] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => setImageFailed(false), [resolvedImage]);
 
   const image = resolvedImage && !imageFailed ? resolvedImage : null;
-  const primaryReason = product.match_reasons[0] || (product.available_quantity > 0 ? "In stock" : null);
+  
+  // Aggregate available quantities across variants
+  const totalQuantity = product.variants?.reduce((sum, v) => {
+    return sum + v.branch_availability.reduce((bsum, b) => bsum + b.available_quantity, 0);
+  }, 0) || 0;
+  
+  const inStock = totalQuantity > 0;
+  const primaryReason = inStock ? "In stock" : "Out of stock";
+
+  // Get distinct sizes and colors
+  const sizes = Array.from(new Set(product.variants?.map(v => v.size) || []));
+  const colors = Array.from(new Set(product.variants?.map(v => v.color) || []));
 
   return (
-    <article className="product-card">
+    <article className={`product-card ${!inStock ? "product-card--out-of-stock" : ""}`}>
       <div className="product-card__media">
         {image ? (
           <img
@@ -38,13 +50,7 @@ export function ProductCard({ product, position, disabled, onAction }: ProductCa
             alt={product.product_name}
             loading="lazy"
             referrerPolicy="no-referrer"
-            onError={() => {
-              console.warn("Product image failed to load", {
-                productId: product.product_id,
-                imageUrl: resolvedImage,
-              });
-              setImageFailed(true);
-            }}
+            onError={() => setImageFailed(true)}
           />
         ) : (
           <div className="product-card__placeholder" aria-label="Product image unavailable">
@@ -53,7 +59,7 @@ export function ProductCard({ product, position, disabled, onAction }: ProductCa
           </div>
         )}
         <span className="product-card__position">Option {position}</span>
-        {primaryReason && <span className="product-card__match">{primaryReason}</span>}
+        <span className="product-card__match">{primaryReason}</span>
       </div>
 
       <div className="product-card__body">
@@ -62,35 +68,40 @@ export function ProductCard({ product, position, disabled, onAction }: ProductCa
           <span>{product.article_code}</span>
         </div>
         <h3>{product.product_name}</h3>
+        
         <div className="product-card__price-row">
-          <p className="product-card__price">{formatCurrency(product.price)}</p>
-          <span className="product-card__availability">
-            <PackageCheck size={13} /> {product.available_quantity}
-          </span>
+          <div className="product-card__prices">
+            <span className="product-card__price">{formatCurrency(product.final_price)}</span>
+            {Number(product.discount_amount) > 0 && (
+              <span className="product-card__original-price">{formatCurrency(product.base_price)}</span>
+            )}
+          </div>
+          {inStock && (
+            <span className="product-card__availability">
+              <PackageCheck size={13} /> {totalQuantity} left
+            </span>
+          )}
         </div>
 
-        <div className="product-card__variants">
-          <span>{product.color}</span>
-          <span>Size {product.size}</span>
-          {product.fit && <span>{product.fit}</span>}
-        </div>
-
-        {product.match_reasons.length > 0 && (
-          <div className="product-card__matches">
-            {product.match_reasons.slice(0, 2).map((reason) => (
-              <span key={reason}><Check size={12} /> {reason}</span>
-            ))}
+        {Number(product.discount_amount) > 0 && product.applied_offer && (
+          <div className="product-card__discount-badge">
+            {product.applied_offer.offer_name || product.applied_offer.offer_code}
           </div>
         )}
+
+        <div className="product-card__variants">
+          {colors.length > 0 && <span>{colors.join(" • ")}</span>}
+          {sizes.length > 0 && <span>Sizes: {sizes.join(" • ")}</span>}
+        </div>
 
         <div className="product-card__actions">
           <button
             type="button"
             className="button button--primary"
-            disabled={disabled}
+            disabled={disabled || !inStock}
             onClick={() => onAction(`Add option ${position} to my cart`)}
           >
-            <ShoppingBag size={15} /> Add
+            <ShoppingBag size={15} /> {inStock ? "Add" : "Out of stock"}
           </button>
           <button
             type="button"

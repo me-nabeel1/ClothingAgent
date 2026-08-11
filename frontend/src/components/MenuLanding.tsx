@@ -1,14 +1,14 @@
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getMenu, resolveProductImage } from "../api/agent";
-import type { ProductOption } from "../types";
+import type { ProductView } from "../types";
 
 interface MenuLandingProps {
   onEnterAgent: (message?: string) => void;
 }
 
 export function MenuLanding({ onEnterAgent }: MenuLandingProps) {
-  const [categories, setCategories] = useState<{ category_name: string; products: ProductOption[] }[]>([]);
+  const [categories, setCategories] = useState<{ category_name: string; products: ProductView[] }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function MenuLanding({ onEnterAgent }: MenuLandingProps) {
               </h3>
               <div className="carousel-container" style={{ display: "flex", overflowX: "auto", gap: "20px", paddingBottom: "16px", scrollSnapType: "x mandatory" }}>
                 {cat.products.map((product) => {
-                  const image = resolveProductImage(product.image_url);
+                  const image = resolveProductImage(product.images?.[0] || null);
                   return (
                     <article
                       key={product.product_id}
@@ -67,7 +67,7 @@ export function MenuLanding({ onEnterAgent }: MenuLandingProps) {
                         <div style={{ fontSize: "14px", fontWeight: "600", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: "4px" }}>
                           {product.product_name}
                         </div>
-                        <div style={{ fontSize: "13px", color: "var(--muted)" }}>PKR {product.price}</div>
+                        <div style={{ fontSize: "13px", color: "var(--muted)" }}>PKR {product.final_price}</div>
                       </div>
                     </article>
                   );

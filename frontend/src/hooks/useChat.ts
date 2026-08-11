@@ -3,9 +3,13 @@ import {
   getClothingAppHealth,
   getHealth,
   chat as postChat,
+  getProductDetails,
+  getCart,
+  updateCartQuantity,
+  removeCartItem,
 } from "../api/agent";
 import { ApiError } from "../api/http";
-import type { CartView, HealthStatus, TimelineMessage } from "../types";
+import type { CartView, HealthStatus, TimelineMessage, ProductView } from "../types";
 
 const INITIAL_HEALTH: HealthStatus = {
   agent: "checking",
@@ -26,7 +30,6 @@ export function useChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TimelineMessage[]>([]);
   const [cart, setCart] = useState<CartView | null>(null);
-  const [suggestedActions, setSuggestedActions] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus>(INITIAL_HEALTH);
@@ -64,7 +67,6 @@ export function useChat() {
     setConversationId(null);
     setMessages([]);
     setCart(null);
-    setSuggestedActions([]);
     setError(null);
   }, []);
 
@@ -74,28 +76,69 @@ export function useChat() {
 
     setError(null);
     setMessages((current) => [...current, makeLocalMessage("user", message)]);
-    setSuggestedActions([]);
     setIsSending(true);
 
     try {
-      const response = await postChat(message, conversationId);
-      if (!conversationId) setConversationId(response.conversation_id);
+      const sessionId = conversationId || crypto.randomUUID();
+      if (!conversationId) {
+        setConversationId(sessionId);
+      }
+      
+      const response = await postChat(message, sessionId);
+      
+      // Concurrently fetch rich product details for displayed items
+      let fullProducts: ProductView[] = [];
+      if (response.state.displayed_products && response.state.displayed_products.length > 0) {
+        try {
+          const detailResponses = await Promise.all(
+            response.state.displayed_products.map(p => getProductDetails(p.product_id))
+          );
+          fullProducts = detailResponses.map(r => r.product);
+        } catch (e) {
+          console.warn("Failed to fetch rich product details", e);
+        }
+      }
+
+      // Concurrently update cart if a cart_id is present in the state
+      if (response.state.cart?.cart_id) {
+        try {
+          const updatedCart = await getCart(response.state.cart.cart_id);
+          setCart(updatedCart);
+        } catch (e) {
+          console.warn("Failed to fetch cart state", e);
+        }
+      } else {
+        setCart(null);
+      }
+
+      let replyContent = response.reply;
+      let checkoutPreview = null;
+
+      // Extract checkout preview JSON block from the text response
+      const checkoutMarker = "Checkout Preview:\n";
+      const previewIndex = replyContent.indexOf(checkoutMarker);
+      if (previewIndex !== -1) {
+        const jsonString = replyContent.substring(previewIndex + checkoutMarker.length);
+        try {
+          checkoutPreview = JSON.parse(jsonString);
+          replyContent = replyContent.substring(0, previewIndex).trim();
+          if (!replyContent) replyContent = "Here is your checkout preview:";
+        } catch (e) {
+          console.warn("Failed to parse checkout preview JSON block");
+        }
+      }
+
       setMessages((current) => [
         ...current,
         {
-          id: response.message_id,
+          id: crypto.randomUUID(),
           role: "assistant",
-          content: response.reply,
+          content: replyContent,
           createdAt: new Date().toISOString(),
-          products: response.products,
-          suggestedActions: response.suggested_actions,
-          activeAgent: response.active_agent,
-          intent: response.intent,
-          uiActions: response.ui_actions || [],
+          products: fullProducts.length > 0 ? fullProducts : undefined,
+          checkoutPreview,
         },
       ]);
-      if (response.cart) setCart(response.cart);
-      setSuggestedActions(response.suggested_actions || []);
     } catch (reason) {
       const messageText = reason instanceof ApiError
         ? reason.message
@@ -111,11 +154,32 @@ export function useChat() {
     }
   }, [checkHealth, conversationId, isSending]);
 
+  const updateCartItemQuantity = useCallback(async (itemId: string, quantity: number) => {
+    if (!cart?.cart_id) return;
+    try {
+      const updatedCart = await updateCartQuantity(cart.cart_id, itemId, quantity);
+      setCart(updatedCart);
+    } catch (e) {
+      console.warn("Failed to update cart quantity", e);
+    }
+  }, [cart]);
+
+  const removeCartItemFromCart = useCallback(async (itemId: string) => {
+    if (!cart?.cart_id) return;
+
+    try {
+      const updatedCart = await removeCartItem(cart.cart_id, itemId);
+      setCart(updatedCart);
+    } catch (e) {
+      console.warn("Failed to remove item", e);
+    }
+  }, [cart]);
+
   return {
     conversationId,
     messages,
     cart,
-    suggestedActions,
+    suggestedActions: [],
     isStarting: false,
     isSending,
     error,
@@ -123,5 +187,7 @@ export function useChat() {
     sendMessage,
     newConversation,
     checkHealth,
+    updateCartItemQuantity,
+    removeCartItemFromCart,
   };
 }

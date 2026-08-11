@@ -1,17 +1,33 @@
 import { X } from "lucide-react";
 import { resolveProductImage } from "../api/agent";
-import type { ProductOption } from "../types";
+import type { ProductView } from "../types";
 
 interface ProductDetailsModalProps {
-  product: ProductOption | null;
+  product: ProductView | null;
   open: boolean;
   onClose: () => void;
+}
+
+function formatCurrency(value: string | number) {
+  return new Intl.NumberFormat("en-PK", {
+    style: "currency",
+    currency: "PKR",
+    maximumFractionDigits: 0,
+  }).format(Number(value));
 }
 
 export function ProductDetailsModal({ product, open, onClose }: ProductDetailsModalProps) {
   if (!product) return null;
 
-  const image = resolveProductImage(product.image_url);
+  const primaryImage = product.images?.[0] || null;
+  const image = resolveProductImage(primaryImage);
+
+  const sizes = Array.from(new Set(product.variants?.map(v => v.size) || []));
+  const colors = Array.from(new Set(product.variants?.map(v => v.color) || []));
+  
+  const totalQuantity = product.variants?.reduce((sum, v) => {
+    return sum + v.branch_availability.reduce((bsum, b) => bsum + b.available_quantity, 0);
+  }, 0) || 0;
 
   return (
     <>
@@ -46,10 +62,15 @@ export function ProductDetailsModal({ product, open, onClose }: ProductDetailsMo
               {image ? <img src={image} alt={product.product_name} style={{ mixBlendMode: "multiply" }} /> : <div className="product-card__placeholder">No image</div>}
             </div>
             <div>
-              <div style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>PKR {product.price}</div>
-              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>Color: <strong style={{ color: "var(--ink)" }}>{product.color}</strong></div>
-              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>Size: <strong style={{ color: "var(--ink)" }}>{product.size}</strong></div>
-              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>Stock: <strong style={{ color: "var(--ink)" }}>{product.available_quantity} available</strong></div>
+              <div style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>{formatCurrency(product.final_price)}</div>
+              {Number(product.discount_amount) > 0 && (
+                <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px", textDecoration: "line-through" }}>
+                  {formatCurrency(product.base_price)}
+                </div>
+              )}
+              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>Colors: <strong style={{ color: "var(--ink)" }}>{colors.join(", ")}</strong></div>
+              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>Sizes: <strong style={{ color: "var(--ink)" }}>{sizes.join(", ")}</strong></div>
+              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>Stock: <strong style={{ color: "var(--ink)" }}>{totalQuantity} available</strong></div>
             </div>
           </div>
 
@@ -78,19 +99,6 @@ export function ProductDetailsModal({ product, open, onClose }: ProductDetailsMo
               <div style={{ fontSize: "13px", fontWeight: "500" }}>{product.season || "N/A"}</div>
             </div>
           </div>
-
-          {product.tags.length > 0 && (
-            <div>
-              <h4 style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600" }}>Tags</h4>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                {product.tags.map(tag => (
-                  <span key={tag} style={{ padding: "4px 8px", background: "var(--paper-soft)", borderRadius: "6px", fontSize: "11px", color: "var(--ink-soft)", border: "1px solid var(--line)" }}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </>

@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getMenu, resolveProductImage } from "../api/agent";
-import type { ProductOption } from "../types";
+import type { ProductView } from "../types";
 
 interface MenuPanelProps {
   open: boolean;
@@ -10,7 +10,7 @@ interface MenuPanelProps {
 }
 
 export function MenuPanel({ open, onClose, onAction }: MenuPanelProps) {
-  const [categories, setCategories] = useState<{ category_name: string; products: ProductOption[] }[]>([]);
+  const [categories, setCategories] = useState<{ category_name: string; products: ProductView[] }[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export function MenuPanel({ open, onClose, onAction }: MenuPanelProps) {
                 <h3 style={{ margin: "0 0 12px", fontFamily: "Georgia, serif" }}>{cat.category_name}</h3>
                 <div style={{ display: "flex", overflowX: "auto", gap: "12px", paddingBottom: "8px" }}>
                   {cat.products.map((product) => {
-                    const image = resolveProductImage(product.image_url);
+                    const image = resolveProductImage(product.images?.[0] || null);
                     return (
                       <div key={product.product_id} style={{ flex: "0 0 140px", cursor: "pointer" }} onClick={() => {
                         onAction(`Show me this ${product.product_name}`);
@@ -60,7 +60,7 @@ export function MenuPanel({ open, onClose, onAction }: MenuPanelProps) {
                           {image ? <img src={image} alt={product.product_name} style={{ mixBlendMode: "multiply" }} /> : <div className="product-card__placeholder">No image</div>}
                         </div>
                         <div style={{ fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{product.product_name}</div>
-                        <div style={{ fontSize: "11px", color: "var(--muted)" }}>PKR {product.price}</div>
+                        <div style={{ fontSize: "11px", color: "var(--muted)" }}>PKR {product.final_price}</div>
                       </div>
                     );
                   })}

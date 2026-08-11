@@ -1,5 +1,5 @@
 import { requestJson } from "./http";
-import type { ChatTurnResponse } from "../types";
+import type { ChatResponse, ProductDetails, CartView } from "../types";
 
 function normalizeBase(value: string | undefined, fallback: string) {
   return (value?.trim() || fallback).replace(/\/$/, "");
@@ -18,13 +18,34 @@ export const CLOTHING_APP_URL = normalizeBase(
   "/catalog",
 );
 
-export function chat(message: string, conversation_id?: string | null): Promise<ChatTurnResponse> {
+export function chat(message: string, session_id: string): Promise<ChatResponse> {
   return requestJson(`${AGENT_API_URL}/api/v1/chat`, {
     method: "POST",
     body: JSON.stringify({
       message,
-      conversation_id: conversation_id || null,
+      session_id,
     }),
+  });
+}
+
+export async function getProductDetails(productId: number): Promise<ProductDetails> {
+  return requestJson(`${CLOTHING_APP_URL}/api/v1/products/${productId}`);
+}
+
+export async function getCart(cartId: string): Promise<CartView> {
+  return requestJson(`${CLOTHING_APP_URL}/api/v1/carts/${cartId}`);
+}
+
+export async function updateCartQuantity(cartId: string, itemId: string, quantity: number): Promise<CartView> {
+  return requestJson(`${CLOTHING_APP_URL}/api/v1/carts/${cartId}/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ quantity }),
+  });
+}
+
+export async function removeCartItem(cartId: string, itemId: string): Promise<CartView> {
+  return requestJson(`${CLOTHING_APP_URL}/api/v1/carts/${cartId}/items/${itemId}`, {
+    method: "DELETE",
   });
 }
 

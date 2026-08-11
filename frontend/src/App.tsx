@@ -28,6 +28,8 @@ export default function App() {
     health,
     sendMessage,
     newConversation,
+    updateCartItemQuantity,
+    removeCartItemFromCart,
   } = useChat();
 
   const [cartOpen, setCartOpen] = useState(false);
@@ -40,10 +42,7 @@ export default function App() {
       behavior: "smooth",
     });
 
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.uiActions?.includes("OPEN_CART")) {
-      setCartOpen(true);
-    }
+    // V1 Agent no longer returns explicit uiActions; cart opens manually.
   }, [messages, isSending]);
 
   const appName = import.meta.env.VITE_APP_NAME ?? "Atelier AI";
@@ -157,6 +156,8 @@ export default function App() {
           disabled={isSending}
           onClose={() => setCartOpen(false)}
           onAction={(value) => void sendMessage(value)}
+          onUpdateQuantity={(itemId, qty) => void updateCartItemQuantity(itemId, qty)}
+          onRemoveItem={(itemId) => void removeCartItemFromCart(itemId)}
         />
         
         {cartOpen && (
