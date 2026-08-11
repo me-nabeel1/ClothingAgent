@@ -45,13 +45,13 @@ class AgentTools:
         
         budget_min = state.budget.minimum
         budget_max = state.budget.maximum
-        if "budget" in state.current_search:
+        if "budget" in state.current_search and state.current_search["budget"]:
             temp_budget = state.current_search["budget"]
             budget_min = temp_budget.get("minimum", budget_min)
             budget_max = temp_budget.get("maximum", budget_max)
             
         size_preferences = dict(state.size_preferences)
-        if "size_preferences" in state.current_search:
+        if "size_preferences" in state.current_search and state.current_search["size_preferences"]:
             size_preferences = dict(state.current_search["size_preferences"])
             
         limit = 4 if len(categories) <= 1 else 12  # Fetch more if multiple categories
