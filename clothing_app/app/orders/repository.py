@@ -18,7 +18,7 @@ class OrderRepository:
         """Generate a random alphanumeric 8-character order number."""
         return "ORD-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
-    async def create_order_from_cart(self, cart: Cart, preview, items) -> Order:
+    async def create_order_from_cart(self, cart: Cart, preview, items, request=None) -> Order:
         """Create a new order from a cart and preview data."""
         order_id = uuid.uuid4()
         
@@ -43,7 +43,12 @@ class OrderRepository:
             delivery_fee=preview.delivery_fee,
             grand_total=preview.grand_total,
             applied_offer_code=preview.applied_offer_code,
-            status="PLACED"
+            status="PLACED",
+            customer_name=request.customer_name if request else None,
+            phone=request.phone if request else None,
+            delivery_address=request.delivery_address if request else None,
+            city=request.city if request else None,
+            delivery_notes=request.delivery_notes if request else None
         )
         
         self._db.add(order)

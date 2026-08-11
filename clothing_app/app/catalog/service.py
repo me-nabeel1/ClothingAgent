@@ -215,6 +215,7 @@ class CatalogService:
             available_qty = max(int(row.get("available_quantity") or 0), 0)
             
             v_map["branch_availability"].append(BranchAvailabilityView(
+                branch_id=row["branch_id"],
                 branch_code=row["branch_code"],
                 branch_name=row["branch_name"],
                 is_available=available_qty > 0,

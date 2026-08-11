@@ -68,6 +68,7 @@ def _make_product(
                 is_available=is_available,
                 branch_availability=[
                     BranchAvailabilityView(
+                        branch_id=1,
                         branch_code="ISB",
                         branch_name="Islamabad",
                         is_available=is_available,
@@ -583,3 +584,97 @@ class TestNoHardcodedTruth:
         from app.llm.prompts import SYSTEM_PROMPT
         assert "NS-SH-001" not in SYSTEM_PROMPT
         assert "4500" not in SYSTEM_PROMPT
+
+
+class TestFullCustomerJourney:
+    @pytest.mark.asyncio
+    async def test_complete_transaction_journey(self, mock_llm, store_context):
+        """Customer journey: search -> refine -> details -> add to cart -> checkout -> order."""
+        mock_client = AsyncMock()
+        mock_client.search_products.return_value = ProductSearchResponse(products=[_make_product()], result_count=1)
+        mock_client.get_product.return_value = ProductDetails(product=_make_product())
+        
+        # Mocks for cart and order
+        from uuid import uuid4
+        cart_id = uuid4()
+        from app.clients.clothing_app.schemas import CartView, StoreOrderPreview, OrderView
+        from datetime import datetime
+        
+        mock_client.create_cart.return_value = CartView(cart_id=cart_id, created_at=datetime.now(), updated_at=datetime.now(), expires_at=datetime.now())
+        mock_client.add_cart_item.return_value = CartView(cart_id=cart_id, total_quantity=1, subtotal=Decimal("4500.00"), created_at=datetime.now(), updated_at=datetime.now(), expires_at=datetime.now())
+        mock_client.preview_cart.return_value = StoreOrderPreview(cart_id=cart_id, grand_total=Decimal("4500.00"))
+        mock_client.place_order.return_value = OrderView(
+            order_id=uuid4(), order_number="ORD-123", status="PLACED", subtotal=Decimal("4500.00"), 
+            discount_total=Decimal("0"), delivery_fee=Decimal("0"), grand_total=Decimal("4500.00"),
+            applied_offer_code=None, customer_name="John Doe", phone="555-1234", 
+            delivery_address="123 Main St", city="Islamabad", delivery_notes="", created_at=datetime.now()
+        )
+
+        tools = AgentTools(mock_client)
+        extractor = AsyncMock(spec=IntentExtractor)
+        agent = SingleAgent(llm=mock_llm, extractor=extractor, tools=tools)
+        
+        # Override generate_text to just return the prompt part containing the action_result
+        async def mock_generate_text(messages, **kwargs):
+            # The action result is usually in the first (system) message or we can just stringify all
+            return str(messages)
+        mock_llm.generate_text = AsyncMock(side_effect=mock_generate_text)
+        
+        state = ConversationState(session_id="s_journey")
+
+        from app.agent.intent import ExtractedFilters
+        # 1. Search
+        extractor.extract.return_value = StructuredIntent(
+            intent="search", filters=ExtractedFilters(occasions=["wedding"])
+        )
+        await agent.process_message("I need something for a wedding.", state, store_context)
+        mock_client.search_products.assert_called()
+
+        # 2. Get Details
+        state.record_displayed_products([_make_product()])
+        extractor.extract.return_value = StructuredIntent(
+            intent="get_details", selected_product_index=1
+        )
+        await agent.process_message("Tell me about the first one.", state, store_context)
+        assert state.selected_product_id == 1
+        mock_client.get_product.assert_called_with(1)
+
+        # 3. Add to Cart
+        extractor.extract.return_value = StructuredIntent(
+            intent="add_to_cart",
+            filters=ExtractedFilters(sizes={"Shirts": "L"})
+        )
+        await agent.process_message("Add size L to cart.", state, store_context)
+        mock_client.add_cart_item.assert_called_once()
+        assert state.cart.item_count == 1
+
+        # 4. Preview Checkout
+        extractor.extract.return_value = StructuredIntent(
+            intent="checkout"
+        )
+        await agent.process_message("What is my total?", state, store_context)
+        mock_client.preview_cart.assert_called_once()
+
+        # 5. Place order - missing info
+        extractor.extract.return_value = StructuredIntent(
+            intent="place_order",
+            order_confirmed=True,
+            delivery_info=None
+        )
+        response = await agent.process_message("Yes, place the order.", state, store_context)
+        assert "Missing delivery information" in response
+        assert not mock_client.place_order.called
+
+        # 6. Place order - Provide info
+        from app.agent.intent import DeliveryInfoExtraction
+        extractor.extract.return_value = StructuredIntent(
+            intent="place_order",
+            order_confirmed=True,
+            delivery_info=DeliveryInfoExtraction(
+                customer_name="John Doe", phone="555-1234", delivery_address="123 Main St", city="Islamabad"
+            )
+        )
+        response = await agent.process_message("I am John Doe, phone 555-1234, deliver to 123 Main St, Islamabad", state, store_context)
+        mock_client.place_order.assert_called_once()
+        assert "Order placed successfully" in response
+        assert state.cart.cart_id is None  # Cart cleared

@@ -27,6 +27,18 @@ class CartContext(BaseModel):
     subtotal: float = 0.0
 
 
+class DeliveryContext(BaseModel):
+    """Tracks the collected delivery information."""
+    customer_name: Optional[str] = None
+    phone: Optional[str] = None
+    delivery_address: Optional[str] = None
+    city: Optional[str] = None
+    delivery_notes: Optional[str] = None
+
+    def is_complete(self) -> bool:
+        return all([self.customer_name, self.phone, self.delivery_address, self.city])
+
+
 class DisplayedProduct(BaseModel):
     """A product recently shown to the customer."""
     product_id: int
@@ -60,8 +72,10 @@ class ConversationState(BaseModel):
     selected_product_id: Optional[int] = None
     requested_unavailable_products: list[ProductInterest] = Field(default_factory=list)
     
-    # Cart context
+    # Cart and checkout context
     cart: CartContext = Field(default_factory=CartContext)
+    delivery: DeliveryContext = Field(default_factory=DeliveryContext)
+    order_confirmed: bool = False
     
     # Temporary search overrides for the current request
     current_search: dict[str, Any] = Field(default_factory=dict)
@@ -104,6 +118,22 @@ class ConversationState(BaseModel):
 
         if "selected_product_id" in delta:
             self.selected_product_id = delta["selected_product_id"]
+            
+        if "delivery" in delta and delta["delivery"]:
+            del_delta = delta["delivery"]
+            if "customer_name" in del_delta and del_delta["customer_name"]:
+                self.delivery.customer_name = del_delta["customer_name"]
+            if "phone" in del_delta and del_delta["phone"]:
+                self.delivery.phone = del_delta["phone"]
+            if "delivery_address" in del_delta and del_delta["delivery_address"]:
+                self.delivery.delivery_address = del_delta["delivery_address"]
+            if "city" in del_delta and del_delta["city"]:
+                self.delivery.city = del_delta["city"]
+            if "delivery_notes" in del_delta and del_delta["delivery_notes"]:
+                self.delivery.delivery_notes = del_delta["delivery_notes"]
+                
+        if "order_confirmed" in delta:
+            self.order_confirmed = delta["order_confirmed"]
             
     def record_displayed_products(self, products: list[Any]) -> None:
         """Record products recently shown to the customer."""

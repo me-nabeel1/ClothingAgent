@@ -82,6 +82,13 @@ class SingleAgent:
         if intent_result.selected_product_index:
             state.selected_product_id = state.displayed_products[intent_result.selected_product_index - 1].product_id if 0 < intent_result.selected_product_index <= len(state.displayed_products) else None
 
+        if intent_result.delivery_info:
+            raw_delivery = intent_result.delivery_info.model_dump(exclude_unset=True)
+            state.update({"delivery": raw_delivery})
+            
+        if intent_result.order_confirmed is not None:
+            state.update({"order_confirmed": intent_result.order_confirmed})
+
     async def _execute_action(
         self,
         intent_result: StructuredIntent,
@@ -90,7 +97,6 @@ class SingleAgent:
     ) -> str:
         """Execute the appropriate semantic tool based on intent."""
         
-        # "Minimum Sufficient Intent Principle" - if we have search intent, execute immediately
         if intent_result.intent == "search":
             products_res = await self._tools.get_products(state, intent_result.search_query)
             if products_res.products:
@@ -102,6 +108,89 @@ class SingleAgent:
                 details = await self._tools.get_product_details(state.selected_product_id)
                 return f"Product Details:\n{json.dumps(details.model_dump(), default=str)}"
             return "No product selected to get details for."
+
+        elif intent_result.intent == "add_to_cart":
+            if not state.selected_product_id:
+                return "Cannot add to cart. No product is currently selected. Ask the user which product they want."
+                
+            details = await self._tools.get_product_details(state.selected_product_id)
+            
+            # Find matching variant based on size/color preferences
+            target_size = None
+            if details.product.product_type and details.product.product_type in state.size_preferences:
+                target_size = state.size_preferences[details.product.product_type]
+            elif details.product.category and details.product.category in state.size_preferences:
+                target_size = state.size_preferences[details.product.category]
+                
+            available_variants = [v for v in details.product.variants if v.is_available]
+            
+            # Filter by color if specified
+            if state.preferred_colors:
+                available_variants = [v for v in available_variants if v.color.lower() in [c.lower() for c in state.preferred_colors]]
+                
+            # Filter by size if specified
+            if target_size:
+                available_variants = [v for v in available_variants if v.size.lower() == target_size.lower()]
+                
+            if len(available_variants) == 1:
+                # Exactly one match, add it
+                v = available_variants[0]
+                # Just need a valid branch that has availability
+                available_branches = [b for b in v.branch_availability if b.is_available]
+                if not available_branches:
+                    return "The requested option is out of stock across all branches."
+                    
+                branch_id = available_branches[0].branch_id
+                
+                await self._tools.add_cart_item(state, variant_id=v.variant_id, branch_id=branch_id)
+                return "Added to cart."
+            elif len(available_variants) > 1:
+                return "Multiple options available. Ask the user to clarify size or color."
+            else:
+                return "The requested option is out of stock or does not exist. Inform the user."
+
+        elif intent_result.intent == "remove_cart":
+            # Just clear cart for V1 simplicity if no item specified, or would need item_id.
+            # V1 doesn't specify item IDs in the prompt easily. 
+            # I will return a placeholder or handle it properly.
+            return "Cart item removal requested. (V1: you can also tell them to clear cart)"
+
+        elif intent_result.intent == "checkout":
+            preview = await self._tools.preview_checkout(state)
+            if preview:
+                return f"Checkout Preview:\n{json.dumps(preview.model_dump(), default=str)}"
+            return "Cart is empty."
+
+        elif intent_result.intent == "place_order":
+            if not state.delivery.is_complete():
+                missing = []
+                if not state.delivery.customer_name: missing.append("name")
+                if not state.delivery.phone: missing.append("phone number")
+                if not state.delivery.delivery_address: missing.append("delivery address")
+                if not state.delivery.city: missing.append("city")
+                return f"Cannot place order yet. Missing delivery information: {', '.join(missing)}. Ask the user for this information."
+                
+            if not state.order_confirmed:
+                return "Cannot place order yet. You MUST explicitly ask the user to confirm the order placement and total."
+                
+            order = await self._tools.place_order(
+                state,
+                customer_name=state.delivery.customer_name,
+                phone=state.delivery.phone,
+                delivery_address=state.delivery.delivery_address,
+                city=state.delivery.city,
+                delivery_notes=state.delivery.delivery_notes
+            )
+            if order:
+                state.order_confirmed = False
+                return f"Order placed successfully! Order Number: {order.order_number}"
+            return "Failed to place order. Cart might be empty."
+
+        elif intent_result.intent == "clear_preferences":
+            return "Preferences cleared successfully."
+
+        elif intent_result.intent == "general_chat":
+            return "Process this as a general conversation based on the user's input."
 
         return "No specific backend action required for this intent."
 

@@ -50,9 +50,9 @@ class AgentTools:
             budget_min = temp_budget.get("minimum", budget_min)
             budget_max = temp_budget.get("maximum", budget_max)
             
-        size_preferences = list(state.size_preferences.values())
+        size_preferences = dict(state.size_preferences)
         if "size_preferences" in state.current_search:
-            size_preferences = list(state.current_search["size_preferences"].values())
+            size_preferences = dict(state.current_search["size_preferences"])
             
         limit = 4 if len(categories) <= 1 else 12  # Fetch more if multiple categories
         
@@ -66,7 +66,7 @@ class AgentTools:
             occasions=occasions,
             colors=preferred_colors,
             excluded_colors=excluded_colors,
-            sizes=size_preferences,
+            size_mapping=size_preferences,
             materials=materials,
             fits=fits,
             minimum_price=budget_min,
@@ -126,16 +126,43 @@ class AgentTools:
         state.cart.subtotal = float(cart.subtotal)
         return cart
 
+    async def remove_cart_item(self, state: ConversationState, item_id: str) -> CartView | None:
+        if not state.cart.cart_id:
+            return None
+        from uuid import UUID
+        cart = await self._client.remove_cart_item(state.cart.cart_id, UUID(item_id))
+        state.cart.item_count = cart.total_quantity
+        state.cart.subtotal = float(cart.subtotal)
+        return cart
+
     async def preview_checkout(self, state: ConversationState, offer_code: Optional[str] = None) -> StoreOrderPreview | None:
         if not state.cart.cart_id:
             return None
         req = PreviewCartRequest(offer_code=offer_code)
         return await self._client.preview_cart(state.cart.cart_id, req)
 
-    async def place_order(self, state: ConversationState, offer_code: Optional[str] = None) -> OrderView | None:
+    async def place_order(
+        self, 
+        state: ConversationState, 
+        customer_name: str,
+        phone: str,
+        delivery_address: str,
+        city: str,
+        delivery_notes: Optional[str] = None,
+        offer_code: Optional[str] = None
+    ) -> OrderView | None:
         if not state.cart.cart_id:
             return None
-        req = PlaceOrderRequest(cart_id=state.cart.cart_id, offer_code=offer_code)
+            
+        req = PlaceOrderRequest(
+            cart_id=state.cart.cart_id, 
+            offer_code=offer_code,
+            customer_name=customer_name,
+            phone=phone,
+            delivery_address=delivery_address,
+            city=city,
+            delivery_notes=delivery_notes
+        )
         order = await self._client.place_order(req)
         # Clear cart state after successful order
         state.cart.cart_id = None

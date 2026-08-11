@@ -27,7 +27,7 @@ class ProductSearchRequest(BaseModel):
     occasions: list[str] = Field(default_factory=list)
     colors: list[str] = Field(default_factory=list, max_length=10)
     excluded_colors: list[str] = Field(default_factory=list, max_length=10)
-    sizes: list[str] = Field(default_factory=list, max_length=10)
+    size_mapping: dict[str, str] = Field(default_factory=dict, description="Maps category/product_type to desired size, e.g. {'shirts': 'L'}")
     excluded_product_ids: list[int] = Field(default_factory=list)
     minimum_price: Decimal | None = Field(default=None, ge=0)
     maximum_price: Decimal | None = Field(default=None, ge=0)
@@ -56,6 +56,7 @@ class BranchView(BaseModel):
 
 class BranchAvailabilityView(BaseModel):
     """Stock availability for a specific variant at a specific branch."""
+    branch_id: int
     branch_code: str
     branch_name: str
     is_available: bool
@@ -213,6 +214,11 @@ class StoreOrderPreview(BaseModel):
 class PlaceOrderRequest(BaseModel):
     cart_id: UUID
     offer_code: str | None = None
+    customer_name: str = Field(max_length=100)
+    phone: str = Field(max_length=20)
+    delivery_address: str
+    city: str = Field(max_length=50)
+    delivery_notes: str | None = None
 
 
 class OrderView(BaseModel):
@@ -224,5 +230,10 @@ class OrderView(BaseModel):
     delivery_fee: Decimal
     grand_total: Decimal
     applied_offer_code: str | None
+    customer_name: str | None
+    phone: str | None
+    delivery_address: str | None
+    city: str | None
+    delivery_notes: str | None
     items: list[CartItemView] = Field(default_factory=list)
     created_at: datetime

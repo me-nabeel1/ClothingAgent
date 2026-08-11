@@ -23,7 +23,7 @@ class OrderService:
             PreviewCartRequest(offer_code=request.offer_code)
         )
         
-        order = await self._repository.create_order_from_cart(cart, preview, preview.items)
+        order = await self._repository.create_order_from_cart(cart, preview, preview.items, request)
         
         await self._cart_repo.clear(request.cart_id)
         
@@ -36,6 +36,11 @@ class OrderService:
             delivery_fee=order.delivery_fee,
             grand_total=order.grand_total,
             applied_offer_code=order.applied_offer_code,
+            customer_name=order.customer_name,
+            phone=order.phone,
+            delivery_address=order.delivery_address,
+            city=order.city,
+            delivery_notes=order.delivery_notes,
             items=preview.items,
             created_at=order.created_at
         )
@@ -70,6 +75,11 @@ class OrderService:
             delivery_fee=order.delivery_fee,
             grand_total=order.grand_total,
             applied_offer_code=order.applied_offer_code,
+            customer_name=order.customer_name,
+            phone=order.phone,
+            delivery_address=order.delivery_address,
+            city=order.city,
+            delivery_notes=order.delivery_notes,
             items=items,
             created_at=order.created_at
         )

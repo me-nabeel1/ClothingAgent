@@ -26,6 +26,13 @@ class Order(Base):
     
     applied_offer_code: Mapped[str | None] = mapped_column(String(50))
     
+    # Delivery Information
+    customer_name: Mapped[str | None] = mapped_column(String(100))
+    phone: Mapped[str | None] = mapped_column(String(20))
+    delivery_address: Mapped[str | None] = mapped_column(Text)
+    city: Mapped[str | None] = mapped_column(String(50))
+    delivery_notes: Mapped[str | None] = mapped_column(Text)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

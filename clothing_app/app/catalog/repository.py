@@ -81,8 +81,23 @@ class CatalogRepository:
             )
         if request.excluded_product_ids:
             conditions.append(Product.product_id.not_in(request.excluded_product_ids))
-        if request.sizes:
-            conditions.append(Size.size_label.in_(request.sizes))
+        if request.size_mapping:
+            size_conditions = []
+            for target, sz in request.size_mapping.items():
+                target_term = target.strip().lower()
+                # Check if it matches a category name, product type, or just globally apply if 'all' or unknown.
+                size_conditions.append(
+                    and_(
+                        Size.size_label == sz,
+                        or_(
+                            func.lower(Category.category_name).contains(target_term),
+                            func.lower(Product.product_type).contains(target_term),
+                            func.lower(Product.product_name).contains(target_term)
+                        )
+                    )
+                )
+            if size_conditions:
+                conditions.append(or_(*size_conditions))
         if request.minimum_price is not None:
             conditions.append(ProductVariant.selling_price >= request.minimum_price)
         if request.maximum_price is not None:
@@ -140,7 +155,7 @@ class CatalogRepository:
                 request.categories,
                 request.colors,
                 request.excluded_colors,
-                request.sizes,
+                request.size_mapping,
                 request.minimum_price is not None,
                 request.maximum_price is not None,
                 request.branch_code,
