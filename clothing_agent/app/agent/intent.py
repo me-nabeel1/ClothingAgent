@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 class ExtractedFilters(BaseModel):
     """Shopping constraints extracted from natural language."""
-    categories: list[str] = Field(default_factory=list)
-    product_types: list[str] = Field(default_factory=list)
-    occasions: list[str] = Field(default_factory=list)
-    colors: list[str] = Field(default_factory=list)
-    excluded_colors: list[str] = Field(default_factory=list)
-    sizes: dict[str, str] = Field(default_factory=dict, description="e.g. {'shirt': 'L', 'pants': '34'}")
-    materials: list[str] = Field(default_factory=list)
-    fits: list[str] = Field(default_factory=list)
+    categories: Optional[list[str]] = Field(default=None)
+    product_types: Optional[list[str]] = Field(default=None)
+    occasions: Optional[list[str]] = Field(default=None)
+    colors: Optional[list[str]] = Field(default=None)
+    excluded_colors: Optional[list[str]] = Field(default=None)
+    sizes: Optional[dict[str, str]] = Field(default=None, description="e.g. {'shirt': 'L', 'pants': '34'}")
+    materials: Optional[list[str]] = Field(default=None)
+    fits: Optional[list[str]] = Field(default=None)
     budget: Optional[Budget] = Field(default=None)
     branch: Optional[str] = None
     specific_article: Optional[str] = Field(None, description="Exact article code if mentioned (e.g., NS-SH-001)")

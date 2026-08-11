@@ -51,7 +51,7 @@ class SingleAgent:
         state.current_intent = intent_result.intent
 
         if intent_result.filters:
-            raw = intent_result.filters.model_dump(exclude_unset=True)
+            raw = intent_result.filters.model_dump(exclude_unset=True, exclude_none=True)
             # Map ExtractedFilters field names to ConversationState field names
             mapped: dict = {}
             field_map = {
@@ -65,7 +65,7 @@ class SingleAgent:
             state.update(mapped)
             
         if intent_result.search_overrides:
-            raw = intent_result.search_overrides.model_dump(exclude_unset=True)
+            raw = intent_result.search_overrides.model_dump(exclude_unset=True, exclude_none=True)
             field_map = {
                 "colors": "preferred_colors",
                 "sizes": "size_preferences",
@@ -83,7 +83,7 @@ class SingleAgent:
             state.selected_product_id = state.displayed_products[intent_result.selected_product_index - 1].product_id if 0 < intent_result.selected_product_index <= len(state.displayed_products) else None
 
         if intent_result.delivery_info:
-            raw_delivery = intent_result.delivery_info.model_dump(exclude_unset=True)
+            raw_delivery = intent_result.delivery_info.model_dump(exclude_unset=True, exclude_none=True)
             state.update({"delivery": raw_delivery})
             
         if intent_result.order_confirmed is not None:
