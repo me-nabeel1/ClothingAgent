@@ -37,8 +37,10 @@ class CatalogService:
         repository: CatalogRepository,
         *,
         product_images_dir: Path | None = None,
+        promotions: Any = None,
     ) -> None:
         self._repository = repository
+        self._promotions = promotions
         self._product_images_dir = product_images_dir or get_config().product_images_dir
         self._image_url_cache: dict[str, str | None] = {}
 
@@ -72,16 +74,52 @@ class CatalogService:
             relaxed.append("budget_15_percent")
             rows = await self._repository.search_rows(working)
 
-        products = self._group_rows_into_products(rows)
+        offers = []
+        if self._promotions:
+            offers = await self._promotions._repository.get_active_offers()
+
+        products = self._group_rows_into_products(rows, offers)
+        
+        # Implement deterministic multi-category balancing if multiple categories were requested
+        if len(request.categories) > 1 and products:
+            balanced = []
+            category_groups = {}
+            for p in products:
+                # Use a case-insensitive check to group properly
+                matched_cat = p.category
+                for req_cat in request.categories:
+                    if req_cat.lower() in p.category.lower():
+                        matched_cat = req_cat
+                        break
+                category_groups.setdefault(matched_cat, []).append(p)
+                
+            # target per category is limit // num_categories
+            target_per_cat = max(1, request.limit // len(request.categories))
+            
+            # 1st pass: take up to target from each category
+            remaining = []
+            for cat, prods in category_groups.items():
+                balanced.extend(prods[:target_per_cat])
+                remaining.extend(prods[target_per_cat:])
+                
+            # 2nd pass: fill the rest up to limit from remaining products
+            if len(balanced) < request.limit and remaining:
+                needed = request.limit - len(balanced)
+                balanced.extend(remaining[:needed])
+                
+            # Preserve some logical order: group by category, then by original rank
+            products = sorted(balanced, key=lambda x: (x.category, -len([v for v in x.variants if v.is_available])))
+
         # Apply ranking based on original DB ordering which is preserved in products map insertion order.
         return ProductSearchResponse(
-            products=products,
-            result_count=len(products),
+            products=products[:request.limit],
+            result_count=len(products[:request.limit]),
             relaxed_constraints=relaxed,
         )
 
-    def _group_rows_into_products(self, rows: list[dict[str, Any]]) -> list[ProductView]:
+    def _group_rows_into_products(self, rows: list[dict[str, Any]], offers: list[Any] | None = None) -> list[ProductView]:
         """Group flattened database rows into the structured ProductView contract."""
+        offers = offers or []
         products_map = {}
         for r in rows:
             row = self._with_resolved_image(r)
@@ -102,6 +140,9 @@ class CatalogService:
                     "season": row.get("season"),
                     "occasion": row.get("occasion"),
                     "base_price": row["price"], # Default, recalculated later
+                    "final_price": row["price"],
+                    "discount_amount": Decimal("0.00"),
+                    "applied_offer": None,
                     "images": [row["image_url"]] if row.get("image_url") else [],
                     "variants_map": {}
                 }
@@ -112,12 +153,60 @@ class CatalogService:
                 
             vid = row["variant_id"]
             if vid not in p_map["variants_map"]:
+                # Evaluate promotions for this variant
+                base_price = Decimal(str(row["price"]))
+                final_price = base_price
+                best_discount = Decimal("0.00")
+                applied_offer = None
+                
+                for offer in offers:
+                    is_eligible = False
+                    if offer.target_scope in ("GLOBAL", "STORE_WIDE"):
+                        is_eligible = True
+                    elif offer.target_scope == "BRANCH" and offer.target_branch_id == row["branch_id"]:
+                        is_eligible = True
+                    elif offer.target_scope == "PRODUCT" and offer.target_product_id == pid:
+                        is_eligible = True
+                    elif offer.target_scope == "VARIANT" and offer.target_variant_id == vid:
+                        is_eligible = True
+                        
+                    if is_eligible:
+                        # For catalog view, we assume quantity = 1 and no min_cart_value constraint can be met unless 0
+                        # If an offer requires min_cart_value > base_price, it might not apply, but we'll show it if min_cart_value is 0 or low enough.
+                        if offer.min_cart_value and base_price < offer.min_cart_value:
+                            continue
+                        if offer.min_quantity and offer.min_quantity > 1:
+                            continue
+                            
+                        discount = Decimal("0.00")
+                        if offer.benefit_type == "PERCENTAGE" and offer.discount_percentage:
+                            discount = base_price * (offer.discount_percentage / Decimal("100"))
+                        elif offer.benefit_type == "FIXED" and offer.discount_amount:
+                            discount = offer.discount_amount
+                            
+                        if discount > best_discount:
+                            best_discount = discount
+                            from app.promotions.schemas import OfferSummary
+                            applied_offer = OfferSummary(
+                                offer_code=offer.offer_code,
+                                offer_name=offer.offer_name,
+                                description=offer.description,
+                                discount_amount=offer.discount_amount,
+                                discount_percentage=offer.discount_percentage,
+                                benefit_type=offer.benefit_type
+                            )
+                
+                final_price = max(base_price - best_discount, Decimal("0.00"))
+                
                 p_map["variants_map"][vid] = {
                     "variant_id": vid,
                     "sku": row["sku"],
                     "color": row["color"],
                     "size": row["size"],
-                    "price": row["price"],
+                    "price": base_price,
+                    "final_price": final_price,
+                    "discount_amount": best_discount,
+                    "applied_offer": applied_offer,
                     "is_available": False,
                     "branch_availability": []
                 }
@@ -140,7 +229,18 @@ class CatalogService:
         for p in products_map.values():
             variants = [VariantView(**v) for v in p["variants_map"].values()]
             p["variants"] = variants
-            p["base_price"] = min((v.price for v in variants), default=Decimal(0))
+            
+            # Aggregate product-level pricing (take the minimum final_price among variants to show "From X")
+            if variants:
+                min_variant = min(variants, key=lambda v: v.final_price)
+                p["base_price"] = min_variant.price
+                p["final_price"] = min_variant.final_price
+                p["discount_amount"] = min_variant.discount_amount
+                p["applied_offer"] = min_variant.applied_offer
+            else:
+                p["base_price"] = Decimal("0.00")
+                p["final_price"] = Decimal("0.00")
+                
             del p["variants_map"]
             results.append(ProductView(**p))
             

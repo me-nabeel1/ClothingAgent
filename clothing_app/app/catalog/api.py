@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog.repository import CatalogRepository
+from app.promotions.repository import PromotionRepository
+from app.promotions.service import PromotionService
 from app.catalog.schemas import (
     BranchView,
     ProductDetails,
@@ -22,8 +24,8 @@ router = APIRouter(tags=["catalog"])
 
 def get_catalog_service(db: AsyncSession = Depends(get_db)) -> CatalogService:
     """Compose a request-scoped catalog service."""
-
-    return CatalogService(CatalogRepository(db))
+    promotions = PromotionService(PromotionRepository(db))
+    return CatalogService(CatalogRepository(db), promotions=promotions)
 
 @router.get("/store/context", response_model=StoreContext)
 async def get_store_context(

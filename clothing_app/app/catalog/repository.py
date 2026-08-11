@@ -195,7 +195,8 @@ class CatalogRepository:
         )
         
         # Determine sorting for ranking
-        if request.in_stock_only:
+        # Bypass in_stock_only filter if this is an exact article lookup
+        if request.in_stock_only and not request.article_code and not request.sku and product_id is None:
             product_query = product_query.where(available > 0)
             
         product_query = (

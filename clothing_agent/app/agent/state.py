@@ -62,6 +62,9 @@ class ConversationState(BaseModel):
     
     # Cart context
     cart: CartContext = Field(default_factory=CartContext)
+    
+    # Temporary search overrides for the current request
+    current_search: dict[str, Any] = Field(default_factory=dict)
 
     def update(self, delta: dict[str, Any]) -> None:
         """Incrementally update state fields using a delta dictionary."""
@@ -122,3 +125,4 @@ class ConversationState(BaseModel):
         self.fits.clear()
         self.budget = Budget()
         self.selected_product_id = None
+        self.current_search.clear()

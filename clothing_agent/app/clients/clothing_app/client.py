@@ -19,6 +19,10 @@ from app.clients.clothing_app.schemas import (
     ProductSearchResponse,
     StoreContext,
     UpdateCartItemRequest,
+    PreviewCartRequest,
+    StoreOrderPreview,
+    PlaceOrderRequest,
+    OrderView,
 )
 from app.core.config import AgentConfig
 from app.core.errors import AgentError
@@ -152,6 +156,24 @@ class ClothingAppClient:
 
         return await self._request(
             "DELETE", f"/api/v1/carts/{cart_id}/items", response_model=CartView
+        )
+
+    async def preview_cart(self, cart_id: UUID, request: PreviewCartRequest) -> StoreOrderPreview:
+        """Preview checkout with discounts and delivery fees applied."""
+        return await self._request(
+            "POST",
+            f"/api/v1/carts/{cart_id}/preview",
+            json=request.model_dump(mode="json"),
+            response_model=StoreOrderPreview,
+        )
+
+    async def place_order(self, request: PlaceOrderRequest) -> OrderView:
+        """Submit an order and convert the temporary cart to a persistent state."""
+        return await self._request(
+            "POST",
+            "/api/v1/orders",
+            json=request.model_dump(mode="json"),
+            response_model=OrderView,
         )
 
     async def _request(

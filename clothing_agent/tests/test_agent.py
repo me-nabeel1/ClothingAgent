@@ -56,6 +56,7 @@ def _make_product(
         brand="Northstar",
         occasion=occasion,
         base_price=base_price,
+        final_price=base_price,
         variants=[
             VariantView(
                 variant_id=product_id * 10,
@@ -63,6 +64,7 @@ def _make_product(
                 color=color,
                 size=size,
                 price=base_price,
+                final_price=base_price,
                 is_available=is_available,
                 branch_availability=[
                     BranchAvailabilityView(

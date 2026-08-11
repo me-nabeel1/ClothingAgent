@@ -64,6 +64,21 @@ class SingleAgent:
                 mapped[mapped_key] = value
             state.update(mapped)
             
+        if intent_result.search_overrides:
+            raw = intent_result.search_overrides.model_dump(exclude_unset=True)
+            field_map = {
+                "colors": "preferred_colors",
+                "sizes": "size_preferences",
+                "branch": "branch_preference",
+            }
+            mapped: dict = {}
+            for key, value in raw.items():
+                mapped_key = field_map.get(key, key)
+                mapped[mapped_key] = value
+            state.current_search = mapped
+        else:
+            state.current_search.clear()
+            
         if intent_result.selected_product_index:
             state.selected_product_id = state.displayed_products[intent_result.selected_product_index - 1].product_id if 0 < intent_result.selected_product_index <= len(state.displayed_products) else None
 

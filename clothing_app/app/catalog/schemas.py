@@ -7,6 +7,9 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 
+from app.promotions.schemas import OfferSummary
+
+
 class ProductSearchRequest(BaseModel):
     """Structured search criteria accepted from the UI or clothing agent."""
 
@@ -57,6 +60,9 @@ class VariantView(BaseModel):
     color: str
     size: str
     price: Decimal
+    final_price: Decimal
+    discount_amount: Decimal = Field(default=Decimal("0.00"))
+    applied_offer: OfferSummary | None = None
     is_available: bool
     branch_availability: list[BranchAvailabilityView] = Field(default_factory=list)
 
@@ -77,6 +83,9 @@ class ProductView(BaseModel):
     season: str | None = None
     occasion: str | None = None
     base_price: Decimal
+    final_price: Decimal
+    discount_amount: Decimal = Field(default=Decimal("0.00"))
+    applied_offer: OfferSummary | None = None
     images: list[str] = Field(default_factory=list)
     variants: list[VariantView] = Field(default_factory=list)
 

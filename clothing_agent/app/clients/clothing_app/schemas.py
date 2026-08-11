@@ -9,6 +9,15 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class OfferSummary(BaseModel):
+    offer_code: str
+    offer_name: str
+    description: str | None = None
+    discount_amount: Decimal | None = None
+    discount_percentage: Decimal | None = None
+    benefit_type: str
+
+
 class ProductSearchRequest(BaseModel):
     """Structured product-search payload accepted by the clothing application."""
 
@@ -60,6 +69,9 @@ class VariantView(BaseModel):
     color: str
     size: str
     price: Decimal
+    final_price: Decimal
+    discount_amount: Decimal = Field(default=Decimal("0.00"))
+    applied_offer: OfferSummary | None = None
     is_available: bool
     branch_availability: list[BranchAvailabilityView] = Field(default_factory=list)
 
@@ -80,6 +92,9 @@ class ProductView(BaseModel):
     season: str | None = None
     occasion: str | None = None
     base_price: Decimal
+    final_price: Decimal
+    discount_amount: Decimal = Field(default=Decimal("0.00"))
+    applied_offer: OfferSummary | None = None
     images: list[str] = Field(default_factory=list)
     variants: list[VariantView] = Field(default_factory=list)
 
@@ -177,3 +192,37 @@ class CartView(BaseModel):
     created_at: datetime
     updated_at: datetime
     expires_at: datetime
+
+
+class PreviewCartRequest(BaseModel):
+    offer_code: str | None = None
+
+
+class StoreOrderPreview(BaseModel):
+    """The checkout preview with discounts and fees applied."""
+    cart_id: UUID
+    items: list[CartItemView] = Field(default_factory=list)
+    total_quantity: int = 0
+    subtotal: Decimal = Decimal("0.00")
+    discount_total: Decimal = Decimal("0.00")
+    delivery_fee: Decimal = Decimal("0.00")
+    grand_total: Decimal = Decimal("0.00")
+    applied_offer_code: str | None = None
+
+
+class PlaceOrderRequest(BaseModel):
+    cart_id: UUID
+    offer_code: str | None = None
+
+
+class OrderView(BaseModel):
+    order_id: UUID
+    order_number: str
+    status: str
+    subtotal: Decimal
+    discount_total: Decimal
+    delivery_fee: Decimal
+    grand_total: Decimal
+    applied_offer_code: str | None
+    items: list[CartItemView] = Field(default_factory=list)
+    created_at: datetime
