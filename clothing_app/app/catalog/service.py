@@ -291,7 +291,11 @@ class CatalogService:
             product_id=product_id,
             database_limit=300,
         )
-        products = self._group_rows_into_products(rows)
+        offers = []
+        if self._promotions:
+            offers = await self._promotions._repository.get_active_offers()
+
+        products = self._group_rows_into_products(rows, offers)
         if not products:
             raise NotFoundError("Product was not found.", code="PRODUCT_NOT_FOUND")
             
