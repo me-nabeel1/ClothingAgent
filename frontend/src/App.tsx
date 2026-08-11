@@ -9,6 +9,7 @@ import { CartPanel } from "./components/CartPanel";
 import { MenuLanding } from "./components/MenuLanding";
 import { Composer } from "./components/Composer";
 import { MessageBubble } from "./components/MessageBubble";
+import { ProductDetailsModal } from "./components/ProductDetailsModal";
 import { useChat } from "./hooks/useChat";
 import "./styles.css";
 
@@ -26,6 +27,8 @@ export default function App() {
     isSending,
     error,
     health,
+    activeDetailsProduct,
+    closeDetails,
     sendMessage,
     newConversation,
     updateCartItemQuantity,
@@ -166,6 +169,14 @@ export default function App() {
             type="button"
             aria-label="Close panel"
             onClick={() => setCartOpen(false)}
+          />
+        )}
+
+        {activeDetailsProduct && (
+          <ProductDetailsModal
+            product={activeDetailsProduct}
+            open={true}
+            onClose={closeDetails}
           />
         )}
       </main>

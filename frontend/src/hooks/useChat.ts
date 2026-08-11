@@ -30,6 +30,7 @@ export function useChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TimelineMessage[]>([]);
   const [cart, setCart] = useState<CartView | null>(null);
+  const [activeDetailsProduct, setActiveDetailsProduct] = useState<ProductView | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus>(INITIAL_HEALTH);
@@ -100,6 +101,13 @@ export function useChat() {
           fullProducts = detailResponses.map(r => r.product);
         } catch (e) {
           console.warn("Failed to fetch rich product details", e);
+        }
+      } else if (response.state.current_intent === "get_details" && response.state.selected_product_id) {
+        try {
+          const detailResponse = await getProductDetails(response.state.selected_product_id);
+          setActiveDetailsProduct(detailResponse.product);
+        } catch (e) {
+          console.warn("Failed to fetch product details", e);
         }
       }
 
@@ -188,6 +196,8 @@ export function useChat() {
     isSending,
     error,
     health,
+    activeDetailsProduct,
+    closeDetails: () => setActiveDetailsProduct(null),
     sendMessage,
     newConversation,
     checkHealth,
