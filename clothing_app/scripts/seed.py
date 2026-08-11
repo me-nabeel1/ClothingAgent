@@ -1,10 +1,11 @@
-"""Database seeder for the Northstar Menswear demo store."""
+"""Database seeder for the Northstar Menswear demo store (Generated)."""
 
 import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 import sys
 import os
+import random
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -17,7 +18,9 @@ from app.inventory.models import BranchInventory
 from app.promotions.models import Offer
 
 async def seed_db(db: AsyncSession):
-    # Truncate all relevant tables
+    # Set fixed seed for deterministic product generation so the demo is stable
+    random.seed(42)
+
     tables = [
         "branches", "categories", "colors", "sizes", "offers",
         "products", "product_variants", "branch_inventory", "product_images"
@@ -28,10 +31,12 @@ async def seed_db(db: AsyncSession):
     now = datetime.now(timezone.utc)
     
     # 1. Branches
-    b1 = Branch(branch_code="ISB-F7", branch_name="Northstar F-7", city="Islamabad", address="F-7 Markaz", is_active=True, created_at=now)
-    b2 = Branch(branch_code="ISB-GG", branch_name="Northstar Gulberg Greens", city="Islamabad", address="Gulberg", is_active=True, created_at=now)
-    b3 = Branch(branch_code="LHR-MR", branch_name="Northstar Mall Road", city="Lahore", address="Mall Road", is_active=True, created_at=now)
-    db.add_all([b1, b2, b3])
+    branches = {
+        "ISB-F7": Branch(branch_code="ISB-F7", branch_name="Northstar F-7", city="Islamabad", address="F-7 Markaz", is_active=True, created_at=now),
+        "ISB-GG": Branch(branch_code="ISB-GG", branch_name="Northstar Gulberg Greens", city="Islamabad", address="Gulberg", is_active=True, created_at=now),
+        "LHR-MR": Branch(branch_code="LHR-MR", branch_name="Northstar Mall Road", city="Lahore", address="Mall Road", is_active=True, created_at=now)
+    }
+    db.add_all(branches.values())
     await db.flush()
 
     # 2. Categories
@@ -74,233 +79,176 @@ async def seed_db(db: AsyncSession):
         db.add(sz)
     await db.flush()
 
-    # 5. Products
-    def create_product(art, name, cat, ptype, occ, mat, fit, sea, cp, sp):
-        return Product(
-            article_code=art, product_name=name, category_id=cats[cat].category_id,
-            product_type=ptype, occasion=occ, gender="MEN", brand="Northstar",
-            material=mat, fit=fit, season=sea, base_cost_price=Decimal(str(cp)),
-            base_selling_price=Decimal(str(sp)), availability_scope="STORE_WIDE", product_status="ACTIVE"
-        )
+    # Generator Configuration
+    cat_config = {
+        "Shirts": {
+            "types": ["shirt"], "occasions": ["formal", "casual", "party"],
+            "materials": ["Cotton", "Linen", "Silk", "Poly-Blend"], "fits": ["Slim", "Regular", "Relaxed"],
+            "names": ["Oxford Shirt", "Linen Shirt", "Dress Shirt", "Button-Down", "Printed Shirt"],
+            "prefixes": ["Premium", "Classic", "Modern", "Essential", "Casual"],
+            "price_range": (2000, 6000), "size_range": ["S", "M", "L", "XL", "XXL"],
+            "images": ["https://images.unsplash.com/photo-1596755094514-f87e32f85e2c?w=500&q=80", "https://images.unsplash.com/photo-1603252109303-2751441dd157?w=500&q=80", "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=500&q=80"]
+        },
+        "T-Shirts": {
+            "types": ["t_shirt", "polo"], "occasions": ["casual", "gym"],
+            "materials": ["Cotton", "Polyester", "Pique"], "fits": ["Regular", "Slim", "Oversized"],
+            "names": ["Crew Neck T-Shirt", "V-Neck T-Shirt", "Polo Shirt", "Graphic Tee"],
+            "prefixes": ["Basic", "Premium", "Athletic", "Vintage", "Essential"],
+            "price_range": (800, 3000), "size_range": ["S", "M", "L", "XL", "XXL"],
+            "images": ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80", "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80"]
+        },
+        "Pants": {
+            "types": ["chino", "dress_pants"], "occasions": ["casual", "formal", "business"],
+            "materials": ["Cotton Blend", "Poly-Viscose", "Linen"], "fits": ["Slim", "Straight", "Tailored"],
+            "names": ["Chinos", "Dress Pants", "Khakis", "Flat Front Pants"],
+            "prefixes": ["Everyday", "Formal", "Classic", "Stretch", "Premium"],
+            "price_range": (2500, 6500), "size_range": ["30", "32", "34", "36", "38"],
+            "images": ["https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80"]
+        },
+        "Traditional": {
+            "types": ["kurta", "shalwar_kameez", "sherwani"], "occasions": ["wedding", "eid", "casual"],
+            "materials": ["Cotton", "Silk Blend", "Brocade", "Wash-n-Wear"], "fits": ["Regular", "Tailored"],
+            "names": ["Kurta", "Shalwar Kameez", "Sherwani", "Waistcoat"],
+            "prefixes": ["Embroidered", "Festive", "Classic", "Premium", "Designer"],
+            "price_range": (3000, 25000), "size_range": ["S", "M", "L", "XL", "XXL"],
+            "images": ["https://images.unsplash.com/photo-1597983073493-88cd35f47448?w=500&q=80"]
+        },
+        "Outerwear": {
+            "types": ["jacket", "bomber_jacket", "leather_jacket", "hoodie"], "occasions": ["casual", "party", "winter"],
+            "materials": ["Polyester", "Leather", "Fleece", "Wool"], "fits": ["Regular", "Slim", "Relaxed"],
+            "names": ["Bomber Jacket", "Moto Jacket", "Winter Hoodie", "Trench Coat", "Puffer Jacket"],
+            "prefixes": ["Classic", "Premium", "Warm", "Stylish", "Rugged"],
+            "price_range": (4000, 15000), "size_range": ["S", "M", "L", "XL", "XXL"],
+            "images": ["https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500&q=80", "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80", "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80"]
+        },
+        "Formal Wear": {
+            "types": ["suit", "blazer", "tuxedo"], "occasions": ["business", "wedding", "formal"],
+            "materials": ["Wool Blend", "Poly-Viscose", "Italian Wool"], "fits": ["Tailored", "Slim", "Classic"],
+            "names": ["Two-Piece Suit", "Three-Piece Suit", "Formal Blazer", "Tuxedo"],
+            "prefixes": ["Executive", "Premium", "Designer", "Classic", "Sharp"],
+            "price_range": (8000, 25000), "size_range": ["S", "M", "L", "XL", "XXL"],
+            "images": ["https://images.unsplash.com/photo-1594938298596-70f56fb3cecb?w=500&q=80"]
+        },
+        "Jeans": {
+            "types": ["jeans"], "occasions": ["casual", "party"],
+            "materials": ["Denim", "Stretch Denim"], "fits": ["Skinny", "Slim", "Straight", "Bootcut"],
+            "names": ["Blue Denim", "Black Jeans", "Faded Jeans", "Ripped Jeans"],
+            "prefixes": ["Classic", "Stretch", "Rugged", "Premium", "Everyday"],
+            "price_range": (2000, 6000), "size_range": ["30", "32", "34", "36", "38"],
+            "images": ["https://images.unsplash.com/photo-1542272604-787c3835535d?w=500&q=80"]
+        },
+        "Activewear": {
+            "types": ["shorts", "joggers", "tracksuit"], "occasions": ["gym", "casual", "running"],
+            "materials": ["Polyester Blend", "Fleece", "Spandex"], "fits": ["Regular", "Slim", "Athletic"],
+            "names": ["Running Shorts", "Fleece Joggers", "Track Pants", "Tracksuit"],
+            "prefixes": ["Performance", "Breathable", "Lightweight", "Pro", "Core"],
+            "price_range": (1500, 5000), "size_range": ["S", "M", "L", "XL", "XXL"],
+            "images": ["https://images.unsplash.com/photo-1533681473678-01e4a6438075?w=500&q=80", "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80"]
+        },
+        "Gym Wear": {
+            "types": ["t_shirt", "tank_top", "compression"], "occasions": ["gym", "workout", "running"],
+            "materials": ["Spandex", "Mesh", "Moisture-wicking Polyester"], "fits": ["Tight", "Athletic", "Regular"],
+            "names": ["Compression T-Shirt", "Tank Top", "Workout Tee", "Muscle Shirt"],
+            "prefixes": ["Pro", "Elite", "Breathable", "Core", "Performance"],
+            "price_range": (1000, 3500), "size_range": ["S", "M", "L", "XL", "XXL"],
+            "images": ["https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80", "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80"]
+        },
+        "Trousers": {
+            "types": ["trousers", "cargo"], "occasions": ["casual", "business", "outdoor"],
+            "materials": ["Cotton", "Twill", "Linen Blend"], "fits": ["Relaxed", "Straight", "Slim"],
+            "names": ["Cotton Trousers", "Cargo Pants", "Pleated Trousers"],
+            "prefixes": ["Casual", "Classic", "Utility", "Premium", "Everyday"],
+            "price_range": (2000, 5500), "size_range": ["30", "32", "34", "36", "38"],
+            "images": ["https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80"]
+        }
+    }
+
+    all_products = []
+    product_variants = []
     
-    p1 = create_product("NS-SH-001", "Premium Oxford Shirt", "Shirts", "shirt", "formal", "Cotton", "Slim", "All Season", 1500, 4500)
-    p2 = create_product("NS-SH-002", "Casual Linen Shirt", "Shirts", "shirt", "casual", "Linen", "Relaxed", "Summer", 1200, 3500)
-    p3 = create_product("NS-TR-001", "Embroidered Wedding Kurta", "Traditional", "kurta", "wedding", "Silk Blend", "Regular", "All Season", 4000, 9500)
-    p4 = create_product("NS-TS-001", "Basic Crew Neck T-Shirt", "T-Shirts", "t_shirt", "casual", "Cotton", "Regular", "Summer", 500, 1500)
-    p5 = create_product("NS-PA-001", "Everyday Chinos", "Pants", "chino", "casual", "Cotton Blend", "Slim", "All Season", 1800, 4500)
-    p6 = create_product("NS-JA-001", "Classic Bomber Jacket", "Outerwear", "bomber_jacket", "casual", "Polyester", "Regular", "Winter", 4500, 11000)
-    p7 = create_product("NS-FW-001", "Executive Two-Piece Suit", "Formal Wear", "suit", "business", "Wool Blend", "Tailored", "Winter", 8000, 18000)
-    p8 = create_product("NS-JE-001", "Classic Blue Denim", "Jeans", "jeans", "casual", "Denim", "Straight", "All Season", 2000, 5000)
-    p9 = create_product("NS-HO-001", "Fleece Winter Hoodie", "Outerwear", "hoodie", "casual", "Fleece", "Relaxed", "Winter", 2500, 6000)
-    p10 = create_product("NS-TR-002", "Festive Shalwar Kameez", "Traditional", "shalwar_kameez", "eid", "Cotton", "Regular", "Summer", 3000, 7000)
-    p11 = create_product("NS-SH-003", "Party Wear Silk Shirt", "Shirts", "shirt", "party", "Silk", "Slim", "All Season", 2500, 6500)
-    p12 = create_product("NS-PA-002", "Formal Dress Pants", "Pants", "dress_pants", "formal", "Poly-Viscose", "Tailored", "All Season", 2200, 5500)
-    p13 = create_product("NS-TS-002", "Polo T-Shirt", "T-Shirts", "polo", "casual", "Pique Cotton", "Regular", "Summer", 800, 2200)
-    p14 = create_product("NS-JA-002", "Leather Moto Jacket", "Outerwear", "leather_jacket", "party", "Leather", "Slim", "Winter", 12000, 25000)
-    p15 = create_product("NS-TR-003", "Sherwani", "Traditional", "sherwani", "wedding", "Brocade", "Tailored", "Winter", 15000, 35000)
-    p16 = create_product("NS-AW-001", "Performance Running Shorts", "Activewear", "shorts", "gym", "Polyester Blend", "Regular", "Summer", 1200, 2500)
-    p17 = create_product("NS-GW-001", "Compression Gym T-Shirt", "Gym Wear", "t_shirt", "gym", "Spandex", "Tight", "All Season", 1500, 3500)
-    p18 = create_product("NS-TR-004", "Casual Cotton Trousers", "Trousers", "trousers", "casual", "Cotton", "Relaxed", "All Season", 2000, 4800)
-    p19 = create_product("NS-AW-002", "Fleece Joggers", "Activewear", "joggers", "casual", "Fleece", "Slim", "Winter", 2200, 5000)
-    p20 = create_product("NS-GW-002", "Breathable Tank Top", "Gym Wear", "tank_top", "gym", "Mesh", "Regular", "Summer", 800, 1800)
-
-    all_products = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20]
-    db.add_all(all_products)
-    await db.flush()
-
-    # Images
-    def add_img(prod, url, is_prim=True, order=1, color=None):
-        db.add(ProductImage(
-            product_id=prod.product_id,
-            color_id=colors[color].color_id if color else None,
-            image_path=url,
-            alt_text=prod.product_name,
-            display_order=order,
-            is_primary=is_prim
-        ))
-
-    add_img(p1, "https://images.unsplash.com/photo-1596755094514-f87e32f85e2c?w=500&q=80")
-    add_img(p2, "https://images.unsplash.com/photo-1603252109303-2751441dd157?w=500&q=80")
-    add_img(p3, "https://images.unsplash.com/photo-1597983073493-88cd35f47448?w=500&q=80")
-    add_img(p4, "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80")
-    add_img(p5, "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80")
-    add_img(p6, "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500&q=80")
-    add_img(p7, "https://images.unsplash.com/photo-1594938298596-70f56fb3cecb?w=500&q=80")
-    add_img(p8, "https://images.unsplash.com/photo-1542272604-787c3835535d?w=500&q=80")
-    add_img(p9, "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80")
-    add_img(p10, "https://images.unsplash.com/photo-1597983073493-88cd35f47448?w=500&q=80") # reusing traditional
-    add_img(p11, "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=500&q=80")
-    add_img(p12, "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80")
-    add_img(p13, "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80")
-    add_img(p14, "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80")
-    add_img(p15, "https://images.unsplash.com/photo-1597983073493-88cd35f47448?w=500&q=80")
-    add_img(p16, "https://images.unsplash.com/photo-1533681473678-01e4a6438075?w=500&q=80")
-    add_img(p17, "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80")
-    add_img(p18, "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80")
-    add_img(p19, "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80")
-    add_img(p20, "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80")
-
-    # 6. Variants and Inventory
-    def create_variant(prod, col, sz, is_active=True):
-        return ProductVariant(
-            product_id=prod.product_id, color_id=colors[col].color_id, size_id=sizes[sz].size_id,
-            sku=f"{prod.article_code}-{col[:1].upper()}-{sz}", barcode=f"{prod.article_code.replace('-','')}{col[:1].upper()}{sz}",
-            cost_price=prod.base_cost_price, selling_price=prod.base_selling_price, is_active=is_active
-        )
+    product_counter = 1
+    
+    for cat_name, conf in cat_config.items():
+        cat_id = cats[cat_name].category_id
         
-    def add_inv(v, b, qty):
-        db.add(BranchInventory(
-            variant_id=v.variant_id, branch_id=b.branch_id, quantity_on_hand=qty,
-            reserved_quantity=0, damaged_quantity=0, in_transit_quantity=0, reorder_level=5, updated_at=now
+        # Generate 12 products for each category
+        for i in range(12):
+            p_type = random.choice(conf["types"])
+            occ = random.choice(conf["occasions"])
+            mat = random.choice(conf["materials"])
+            fit = random.choice(conf["fits"])
+            sea = random.choice(["Summer", "Winter", "All Season"])
+            
+            p_name = f"{random.choice(conf['prefixes'])} {random.choice(conf['names'])}"
+            price = random.randint(conf["price_range"][0], conf["price_range"][1]) // 100 * 100
+            cost_price = price * 0.4
+            
+            art_code = f"NS-{cat_name[:2].upper()}-{str(product_counter).zfill(4)}"
+            
+            p = Product(
+                article_code=art_code, product_name=p_name, category_id=cat_id,
+                product_type=p_type, occasion=occ, gender="MEN", brand="Northstar",
+                material=mat, fit=fit, season=sea, base_cost_price=Decimal(str(cost_price)),
+                base_selling_price=Decimal(str(price)), availability_scope="STORE_WIDE", product_status="ACTIVE"
+            )
+            db.add(p)
+            all_products.append(p)
+            product_counter += 1
+
+    await db.flush()
+    
+    for p in all_products:
+        cat_name = [k for k, v in cats.items() if v.category_id == p.category_id][0]
+        conf = cat_config[cat_name]
+        
+        # Add primary image
+        img_url = random.choice(conf["images"])
+        db.add(ProductImage(
+            product_id=p.product_id, color_id=None, image_path=img_url,
+            alt_text=p.product_name, display_order=1, is_primary=True
         ))
 
-    # P1: Available everywhere
-    v_p1_blk_m = create_variant(p1, "Black", "M")
-    v_p1_wht_l = create_variant(p1, "White", "L")
-    db.add_all([v_p1_blk_m, v_p1_wht_l])
-    await db.flush()
-    add_inv(v_p1_blk_m, b1, 10); add_inv(v_p1_blk_m, b2, 5); add_inv(v_p1_blk_m, b3, 10)
-    add_inv(v_p1_wht_l, b1, 15); add_inv(v_p1_wht_l, b2, 10); add_inv(v_p1_wht_l, b3, 20)
-
-    # P2: Branch difference & Partial OOS (WHT-L OOS in F7, NVY-M avail everywhere)
-    v_p2_wht_l = create_variant(p2, "White", "L")
-    v_p2_nvy_m = create_variant(p2, "Navy", "M")
-    db.add_all([v_p2_wht_l, v_p2_nvy_m])
-    await db.flush()
-    add_inv(v_p2_wht_l, b1, 0); add_inv(v_p2_wht_l, b2, 0); add_inv(v_p2_wht_l, b3, 10)
-    add_inv(v_p2_nvy_m, b1, 20); add_inv(v_p2_nvy_m, b2, 20); add_inv(v_p2_nvy_m, b3, 20)
+        # Generate 2-4 colors per product
+        selected_colors = random.sample(list(colors.values()), random.randint(2, 4))
+        
+        for color in selected_colors:
+            # Generate 3-5 sizes per color
+            selected_sizes = random.sample(conf["size_range"], random.randint(3, len(conf["size_range"])))
+            for sz_label in selected_sizes:
+                sz = sizes[sz_label]
+                col_code = color.color_code
+                v = ProductVariant(
+                    product_id=p.product_id, color_id=color.color_id, size_id=sz.size_id,
+                    sku=f"{p.article_code}-{col_code}-{sz_label}", 
+                    barcode=f"{p.article_code.replace('-','')}{col_code}{sz_label}",
+                    cost_price=p.base_cost_price, selling_price=p.base_selling_price, is_active=True
+                )
+                db.add(v)
+                product_variants.append(v)
     
-    # P3: Wedding - Partial OOS
-    v_p3_mrn_l = create_variant(p3, "Maroon", "L")
-    v_p3_bge_m = create_variant(p3, "Beige", "M")
-    db.add_all([v_p3_mrn_l, v_p3_bge_m])
     await db.flush()
-    add_inv(v_p3_mrn_l, b1, 5); add_inv(v_p3_mrn_l, b2, 2); add_inv(v_p3_mrn_l, b3, 3)
-    add_inv(v_p3_bge_m, b1, 0); add_inv(v_p3_bge_m, b2, 0); add_inv(v_p3_bge_m, b3, 0) # completely OOS
 
-    # P4: Plentiful
-    v_p4_blk_m = create_variant(p4, "Black", "M")
-    v_p4_wht_m = create_variant(p4, "White", "M")
-    db.add_all([v_p4_blk_m, v_p4_wht_m])
-    await db.flush()
-    add_inv(v_p4_blk_m, b1, 100); add_inv(v_p4_blk_m, b2, 100); add_inv(v_p4_blk_m, b3, 100)
-    add_inv(v_p4_wht_m, b1, 100); add_inv(v_p4_wht_m, b2, 100); add_inv(v_p4_wht_m, b3, 100)
+    # Add Inventory
+    all_branches = list(branches.values())
     
-    # P5: Chinos
-    v_p5_nvy_32 = create_variant(p5, "Navy", "32")
-    v_p5_olv_34 = create_variant(p5, "Olive", "34")
-    db.add_all([v_p5_nvy_32, v_p5_olv_34])
-    await db.flush()
-    add_inv(v_p5_nvy_32, b1, 30); add_inv(v_p5_nvy_32, b2, 10); add_inv(v_p5_nvy_32, b3, 20)
-    add_inv(v_p5_olv_34, b1, 15); add_inv(v_p5_olv_34, b2, 10); add_inv(v_p5_olv_34, b3, 5)
-
-    # P6: Jackets
-    v_p6_blk_l = create_variant(p6, "Black", "L")
-    v_p6_nvy_l = create_variant(p6, "Navy", "L")
-    db.add_all([v_p6_blk_l, v_p6_nvy_l])
-    await db.flush()
-    add_inv(v_p6_blk_l, b1, 10); add_inv(v_p6_blk_l, b2, 10); add_inv(v_p6_blk_l, b3, 10)
-    add_inv(v_p6_nvy_l, b1, 0); add_inv(v_p6_nvy_l, b2, 0); add_inv(v_p6_nvy_l, b3, 0) # completely OOS
-
-    # P7: Suit
-    v_p7_blk_40 = create_variant(p7, "Black", "M") # Using M for 40
-    v_p7_nvy_42 = create_variant(p7, "Navy", "L")
-    db.add_all([v_p7_blk_40, v_p7_nvy_42])
-    await db.flush()
-    add_inv(v_p7_blk_40, b1, 2); add_inv(v_p7_blk_40, b2, 1); add_inv(v_p7_blk_40, b3, 1)
-    add_inv(v_p7_nvy_42, b1, 0); add_inv(v_p7_nvy_42, b2, 0); add_inv(v_p7_nvy_42, b3, 5) # Only in LHR
-
-    # P8: Jeans
-    v_p8_blu_32 = create_variant(p8, "Blue", "32")
-    db.add_all([v_p8_blu_32])
-    await db.flush()
-    add_inv(v_p8_blu_32, b1, 50); add_inv(v_p8_blu_32, b2, 50); add_inv(v_p8_blu_32, b3, 50)
-
-    # P9: Hoodie
-    v_p9_gry_l = create_variant(p9, "Grey", "L")
-    db.add_all([v_p9_gry_l])
-    await db.flush()
-    add_inv(v_p9_gry_l, b1, 20); add_inv(v_p9_gry_l, b2, 20); add_inv(v_p9_gry_l, b3, 20)
-
-    # P10: Eid
-    v_p10_wht_l = create_variant(p10, "White", "L")
-    db.add_all([v_p10_wht_l])
-    await db.flush()
-    add_inv(v_p10_wht_l, b1, 30); add_inv(v_p10_wht_l, b2, 30); add_inv(v_p10_wht_l, b3, 30)
-    
-    # P11: Party
-    v_p11_blk_s = create_variant(p11, "Black", "S")
-    db.add_all([v_p11_blk_s])
-    await db.flush()
-    add_inv(v_p11_blk_s, b1, 5); add_inv(v_p11_blk_s, b2, 0); add_inv(v_p11_blk_s, b3, 0)
-    
-    # P12: Formal Pants
-    v_p12_gry_34 = create_variant(p12, "Grey", "34")
-    db.add_all([v_p12_gry_34])
-    await db.flush()
-    add_inv(v_p12_gry_34, b1, 0); add_inv(v_p12_gry_34, b2, 0); add_inv(v_p12_gry_34, b3, 0) # completely OOS
-
-    # P13: Polo
-    v_p13_blu_m = create_variant(p13, "Blue", "M")
-    db.add_all([v_p13_blu_m])
-    await db.flush()
-    add_inv(v_p13_blu_m, b1, 25); add_inv(v_p13_blu_m, b2, 25); add_inv(v_p13_blu_m, b3, 25)
-    
-    # P14: Leather Moto Jacket (Completely Out of stock everywhere)
-    v_p14_brn_l = create_variant(p14, "Brown", "L")
-    db.add_all([v_p14_brn_l])
-    await db.flush()
-    add_inv(v_p14_brn_l, b1, 0); add_inv(v_p14_brn_l, b2, 0); add_inv(v_p14_brn_l, b3, 0)
-    
-    # P15: Sherwani
-    v_p15_mrn_m = create_variant(p15, "Maroon", "M")
-    db.add_all([v_p15_mrn_m])
-    await db.flush()
-    add_inv(v_p15_mrn_m, b1, 2); add_inv(v_p15_mrn_m, b2, 0); add_inv(v_p15_mrn_m, b3, 2)
-
-    # P16: Activewear Shorts
-    v_p16_blk_m = create_variant(p16, "Black", "M")
-    db.add_all([v_p16_blk_m])
-    await db.flush()
-    add_inv(v_p16_blk_m, b1, 20); add_inv(v_p16_blk_m, b2, 20); add_inv(v_p16_blk_m, b3, 20)
-
-    # P17: Gym T-Shirt
-    v_p17_nvy_l = create_variant(p17, "Navy", "L")
-    db.add_all([v_p17_nvy_l])
-    await db.flush()
-    add_inv(v_p17_nvy_l, b1, 30); add_inv(v_p17_nvy_l, b2, 30); add_inv(v_p17_nvy_l, b3, 30)
-
-    # P18: Cotton Trousers
-    v_p18_bge_34 = create_variant(p18, "Beige", "34")
-    db.add_all([v_p18_bge_34])
-    await db.flush()
-    add_inv(v_p18_bge_34, b1, 15); add_inv(v_p18_bge_34, b2, 10); add_inv(v_p18_bge_34, b3, 5)
-
-    # P19: Fleece Joggers
-    v_p19_gry_m = create_variant(p19, "Grey", "M")
-    db.add_all([v_p19_gry_m])
-    await db.flush()
-    add_inv(v_p19_gry_m, b1, 25); add_inv(v_p19_gry_m, b2, 25); add_inv(v_p19_gry_m, b3, 25)
-
-    # P20: Tank Top
-    v_p20_wht_m = create_variant(p20, "White", "M")
-    db.add_all([v_p20_wht_m])
-    await db.flush()
-    add_inv(v_p20_wht_m, b1, 40); add_inv(v_p20_wht_m, b2, 40); add_inv(v_p20_wht_m, b3, 40)
-
+    for v in product_variants:
+        for b in all_branches:
+            # 10% chance to be out of stock
+            qty = 0 if random.random() < 0.1 else random.randint(5, 50)
+            db.add(BranchInventory(
+                variant_id=v.variant_id, branch_id=b.branch_id, quantity_on_hand=qty,
+                reserved_quantity=0, damaged_quantity=0, in_transit_quantity=0, reorder_level=5, updated_at=now
+            ))
+            
     # 7. Promotions
     off1 = Offer(offer_code="WELCOME10", offer_name="Welcome 10% Off", description="10% off store-wide", discount_percentage=Decimal("10.00"), benefit_type="PERCENTAGE", target_scope="STORE_WIDE", valid_from=now, is_active=True, priority=1)
-    
-    # Case H: Offer with min cart value
     off2 = Offer(offer_code="SAVE2000", offer_name="Flat Rs 2000 Off", description="Rs 2000 off on orders above Rs 10000", discount_amount=Decimal("2000.00"), benefit_type="FIXED", target_scope="STORE_WIDE", min_cart_value=Decimal("10000.00"), valid_from=now, is_active=True, priority=2)
-    
-    # Category target offer
     off3 = Offer(offer_code="WINTERJACKETS", offer_name="25% Off Jackets", description="Winter Sale on Jackets", discount_percentage=Decimal("25.00"), benefit_type="PERCENTAGE", target_scope="CATEGORY", target_category_id=cats["Outerwear"].category_id, valid_from=now, is_active=True, priority=3)
 
     db.add_all([off1, off2, off3])
     
     await db.commit()
-    print("Database seeded successfully with extensive Northstar Menswear data!")
+    print(f"Database seeded successfully with {len(all_products)} products and {len(product_variants)} variants!")
 
 async def main():
     async for db in get_db():
