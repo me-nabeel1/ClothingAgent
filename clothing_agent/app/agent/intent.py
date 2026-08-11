@@ -71,7 +71,8 @@ class IntentExtractor:
             f"- Intent: {state.current_intent}\n"
             f"- Categories: {state.categories}\n"
             f"- Occasions: {state.occasions}\n"
-            f"- Colors: {state.preferred_colors}\n\n"
+            f"- Colors: {state.preferred_colors}\n"
+            f"- Last Displayed Products: {[p.product_name for p in state.displayed_products]}\n\n"
             "Available Vocabulary (Must match EXACTLY if used):\n"
             f"Categories: {context.categories}\n"
             f"Product Types: {context.product_types}\n"
@@ -88,6 +89,7 @@ class IntentExtractor:
             "   - If the user explicitly states a preference (e.g., 'I like black', 'My budget is 5000'), put those in 'filters'.\n"
             "   - If the user asks for a temporary search (e.g., 'Show me blue shirts'), put those in 'search_overrides'.\n"
             "   - Do not overwrite persistent preferences with temporary search terms.\n"
+            "5. If the user refers to a previously discussed product or category (e.g., 'do you have IT in maroon', 'show me other shirts'), you MUST infer the category or product type from the 'Last Displayed Products' and include it in your 'search_overrides' so context is not lost.\n"
         )
 
         messages = [
