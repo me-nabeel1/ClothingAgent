@@ -14,74 +14,24 @@ class ProductSearchRequest(BaseModel):
 
     query_text: str | None = Field(default=None, max_length=300)
     categories: list[str] = Field(default_factory=list)
-    colors: list[str] = Field(default_factory=list)
-    excluded_colors: list[str] = Field(default_factory=list)
-    sizes: list[str] = Field(default_factory=list)
+    product_types: list[str] = Field(default_factory=list)
+    occasions: list[str] = Field(default_factory=list)
+    colors: list[str] = Field(default_factory=list, max_length=10)
+    excluded_colors: list[str] = Field(default_factory=list, max_length=10)
+    sizes: list[str] = Field(default_factory=list, max_length=10)
+    excluded_product_ids: list[int] = Field(default_factory=list)
     minimum_price: Decimal | None = Field(default=None, ge=0)
     maximum_price: Decimal | None = Field(default=None, ge=0)
-    branch_code: str | None = None
-    materials: list[str] = Field(default_factory=list)
-    fits: list[str] = Field(default_factory=list)
-    semantic_tags: list[str] = Field(default_factory=list)
+    branch_code: str | None = Field(default=None, max_length=30)
+    materials: list[str] = Field(default_factory=list, max_length=10)
+    fits: list[str] = Field(default_factory=list, max_length=10)
+    seasons: list[str] = Field(default_factory=list, max_length=10)
+    semantic_tags: list[str] = Field(default_factory=list, max_length=20)
+    article_code: str | None = Field(default=None, max_length=40)
+    sku: str | None = Field(default=None, max_length=80)
     in_stock_only: bool = True
     allow_relaxation: bool = True
-    limit: int = Field(default=8, ge=1, le=30)
-
-
-class ProductOption(BaseModel):
-    """One exact product variant at one branch."""
-
-    product_id: int
-    variant_id: int
-    branch_id: int
-    article_code: str
-    product_name: str
-    category: str
-    gender: str
-    brand: str
-    color: str
-    size: str
-    price: Decimal
-    branch_code: str
-    branch_name: str
-    city: str
-    available_quantity: int
-    in_transit_quantity: int = 0
-    image_url: str | None = None
-    material: str | None = None
-    fit: str | None = None
-    season: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    description: str | None = None
-    match_score: float = 0
-    match_reasons: list[str] = Field(default_factory=list)
-
-
-class ProductSearchResponse(BaseModel):
-    """Ranked products returned by the clothing application."""
-
-    products: list[ProductOption] = Field(default_factory=list)
-    result_count: int = 0
-    relaxed_constraints: list[str] = Field(default_factory=list)
-
-
-class ProductDetails(BaseModel):
-    """Complete product metadata and branch-specific options."""
-
-    product_id: int
-    article_code: str
-    product_name: str
-    category: str
-    gender: str
-    brand: str
-    material: str | None = None
-    fit: str | None = None
-    season: str | None = None
-    description: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    attributes: dict[str, object] = Field(default_factory=dict)
-    image_urls: list[str] = Field(default_factory=list)
-    options: list[ProductOption] = Field(default_factory=list)
+    limit: int = Field(default=20, ge=1, le=20)
 
 
 class BranchView(BaseModel):
@@ -93,6 +43,81 @@ class BranchView(BaseModel):
     city: str
     address: str
     phone: str | None = None
+
+
+class BranchAvailabilityView(BaseModel):
+    """Stock availability for a specific variant at a specific branch."""
+    branch_code: str
+    branch_name: str
+    is_available: bool
+    available_quantity: int
+
+
+class VariantView(BaseModel):
+    """A specific size and color combination for a product."""
+    variant_id: int
+    sku: str
+    color: str
+    size: str
+    price: Decimal
+    is_available: bool
+    branch_availability: list[BranchAvailabilityView] = Field(default_factory=list)
+
+
+class ProductView(BaseModel):
+    """A complete product response containing all variants and capabilities."""
+    product_id: int
+    article_code: str
+    product_name: str
+    description: str | None = None
+    category: str
+    subcategory: str | None = None
+    product_type: str
+    gender: str
+    brand: str
+    material: str | None = None
+    fit: str | None = None
+    season: str | None = None
+    occasion: str | None = None
+    base_price: Decimal
+    images: list[str] = Field(default_factory=list)
+    variants: list[VariantView] = Field(default_factory=list)
+
+
+class ProductSearchResponse(BaseModel):
+    """Ranked products returned by the clothing application."""
+
+    products: list[ProductView] = Field(default_factory=list)
+    result_count: int = 0
+    relaxed_constraints: list[str] = Field(default_factory=list)
+
+
+class ProductDetails(BaseModel):
+    """Product metadata and all active branch-specific options."""
+    product: ProductView
+
+
+class MenuCategory(BaseModel):
+    category_name: str
+    products: list[ProductView]
+
+class MenuResponse(BaseModel):
+    categories: list[MenuCategory]
+
+class StoreContext(BaseModel):
+    """General capabilities and catalog structure for the Agent."""
+    store_name: str
+    store_id: str
+    branches: list[BranchView]
+    categories: list[str]
+    subcategories: list[str]
+    product_types: list[str]
+    supported_attributes: list[str]
+    sizes: list[str]
+    colors: list[str]
+    seasons: list[str]
+    occasions: list[str]
+    capabilities: list[str]
 
 
 class AvailabilityView(BaseModel):

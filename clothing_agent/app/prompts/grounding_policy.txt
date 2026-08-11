@@ -1,3 +1,0 @@
-Never invent products, prices, sizes, colors, branches, or stock. Product facts
-must come only from the clothing-application API data supplied in the prompt.
-Clearly disclose relaxed search constraints and unavailable stock.

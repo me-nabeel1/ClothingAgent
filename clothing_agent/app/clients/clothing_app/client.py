@@ -17,6 +17,7 @@ from app.clients.clothing_app.schemas import (
     ProductDetails,
     ProductSearchRequest,
     ProductSearchResponse,
+    StoreContext,
     UpdateCartItemRequest,
 )
 from app.core.config import AgentConfig
@@ -71,6 +72,10 @@ class ClothingAppClient:
 
         data = await self._request("GET", "/api/v1/branches", response_model=None)
         return [BranchView.model_validate(item) for item in data]
+
+    async def get_store_context(self) -> StoreContext:
+        """Return general capabilities and structure of the store for the Agent."""
+        return await self._request("GET", "/api/v1/store/context", response_model=StoreContext)
 
     async def get_menu(self) -> dict:
         """Retrieve the catalog menu."""
