@@ -86,9 +86,13 @@ export function useChat() {
       
       const response = await postChat(message, sessionId);
       
-      // Concurrently fetch rich product details for displayed items
+      // Concurrently fetch rich product details for displayed items ONLY if the intent was to search
       let fullProducts: ProductView[] = [];
-      if (response.state.displayed_products && response.state.displayed_products.length > 0) {
+      if (
+        response.state.current_intent === "search" &&
+        response.state.displayed_products && 
+        response.state.displayed_products.length > 0
+      ) {
         try {
           const detailResponses = await Promise.all(
             response.state.displayed_products.map(p => getProductDetails(p.product_id))
