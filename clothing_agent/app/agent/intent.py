@@ -89,7 +89,7 @@ class IntentExtractor:
             "   - If the user explicitly states a preference (e.g., 'I like black', 'My budget is 5000'), put those in 'filters'.\n"
             "   - If the user asks for a temporary search (e.g., 'Show me blue shirts'), put those in 'search_overrides'.\n"
             "   - Do not overwrite persistent preferences with temporary search terms.\n"
-            "5. If the user refers to a previously discussed product or category (e.g., 'do you have IT in maroon', 'show me other shirts'), you MUST infer the category or product type from the 'Last Displayed Products' and include it in your 'search_overrides' so context is not lost.\n"
+            "5. Context Preservation (CRITICAL): If the user makes a follow-up refinement (e.g., 'show me cheaper', 'do you have IT in maroon', 'larger size') without explicitly naming a new category, you MUST infer their intended category from the 'Last Displayed Products' or 'Categories' list, and include it in 'search_overrides'. Never drop the current category unless the user explicitly changes it.\n"
         )
 
         messages = [
