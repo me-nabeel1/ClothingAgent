@@ -140,6 +140,11 @@ export function useChat() {
         }
       }
 
+      let deliveryContext = undefined;
+      if (checkoutPreview) {
+        deliveryContext = response.state.delivery;
+      }
+
       setMessages((current) => [
         ...current,
         {
@@ -149,6 +154,7 @@ export function useChat() {
           createdAt: new Date().toISOString(),
           products: fullProducts.length > 0 ? fullProducts : undefined,
           checkoutPreview,
+          deliveryContext,
         },
       ]);
     } catch (reason) {

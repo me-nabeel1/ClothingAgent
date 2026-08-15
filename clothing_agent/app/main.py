@@ -34,6 +34,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title=config.app_name,
     version="1.0.0",
+    root_path="/agent",
     description=(
         "Domain-specific clothing sales concierge with guided discovery, "
         "catalog retrieval, and cart actions."

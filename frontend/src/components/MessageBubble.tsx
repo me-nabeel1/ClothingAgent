@@ -1,6 +1,7 @@
 import { Bot, UserRound, ArrowRight } from "lucide-react";
 import type { TimelineMessage } from "../types";
 import { ProductCard } from "./ProductCard";
+import { useState } from "react";
 
 interface MessageBubbleProps {
   message: TimelineMessage;
@@ -30,6 +31,20 @@ export function MessageBubble({ message, disabled, onAction }: MessageBubbleProp
   const isUrdu = /[\u0600-\u06FF]/.test(message.content);
   const textDirection = isUrdu ? "rtl" : "ltr";
   const textAlign = isUrdu ? "right" : "left";
+
+  const [deliveryData, setDeliveryData] = useState({
+    name: message.deliveryContext?.customer_name || "",
+    phone: message.deliveryContext?.phone || "",
+    city: message.deliveryContext?.city || "",
+    address: message.deliveryContext?.delivery_address || "",
+    notes: message.deliveryContext?.delivery_notes || "",
+  });
+
+  const handleDeliverySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formattedMessage = `Place order with corrected details:\nName: ${deliveryData.name}\nPhone: ${deliveryData.phone}\nCity: ${deliveryData.city}\nAddress: ${deliveryData.address}`;
+    onAction(formattedMessage);
+  };
 
   return (
     <div className={`message-row ${assistant ? "message-row--assistant" : "message-row--user"}`}>
@@ -95,15 +110,73 @@ export function MessageBubble({ message, disabled, onAction }: MessageBubbleProp
                 </ul>
               </div>
             )}
-            <div className="checkout-preview-actions">
-              <button 
-                className="button button--primary"
-                disabled={disabled}
-                onClick={() => onAction("Yes, I confirm the order.")}
-              >
-                Confirm Order <ArrowRight size={14} />
-              </button>
-            </div>
+
+            {message.deliveryContext && (
+              <div className="delivery-form-container">
+                <h5>Confirm Delivery Details</h5>
+                <form onSubmit={handleDeliverySubmit} className="delivery-form">
+                  <div className="delivery-form-group">
+                    <label>Name</label>
+                    <input 
+                      type="text" 
+                      value={deliveryData.name} 
+                      onChange={(e) => setDeliveryData({...deliveryData, name: e.target.value})}
+                      required
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="delivery-form-group">
+                    <label>Phone</label>
+                    <input 
+                      type="text" 
+                      value={deliveryData.phone} 
+                      onChange={(e) => setDeliveryData({...deliveryData, phone: e.target.value})}
+                      required
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="delivery-form-group">
+                    <label>City</label>
+                    <input 
+                      type="text" 
+                      value={deliveryData.city} 
+                      onChange={(e) => setDeliveryData({...deliveryData, city: e.target.value})}
+                      required
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="delivery-form-group">
+                    <label>Address</label>
+                    <textarea 
+                      value={deliveryData.address} 
+                      onChange={(e) => setDeliveryData({...deliveryData, address: e.target.value})}
+                      required
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="checkout-preview-actions">
+                    <button 
+                      type="submit"
+                      className="button button--primary"
+                      disabled={disabled}
+                    >
+                      Confirm Details & Place Order <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+            {!message.deliveryContext && (
+              <div className="checkout-preview-actions">
+                <button 
+                  className="button button--primary"
+                  disabled={disabled}
+                  onClick={() => onAction("Yes, I confirm the order.")}
+                >
+                  Confirm Order <ArrowRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

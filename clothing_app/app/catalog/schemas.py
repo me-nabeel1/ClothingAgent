@@ -32,7 +32,7 @@ class ProductSearchRequest(BaseModel):
     sku: str | None = Field(default=None, max_length=80)
     in_stock_only: bool = True
     allow_relaxation: bool = True
-    limit: int = Field(default=20, ge=1, le=20)
+    limit: int = Field(default=20, ge=1, le=500)
 
 
 class BranchView(BaseModel):

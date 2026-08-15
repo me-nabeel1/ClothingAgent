@@ -155,6 +155,7 @@ export interface TimelineMessage {
   createdAt: string;
   products?: ProductView[];
   checkoutPreview?: any;
+  deliveryContext?: DeliveryContext;
 }
 
 export interface HealthStatus {

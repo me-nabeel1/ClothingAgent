@@ -18,6 +18,7 @@ from app.clients.clothing_app.schemas import (
     ProductSearchRequest,
     ProductSearchResponse,
     StoreContext,
+ 
     UpdateCartItemRequest,
     PreviewCartRequest,
     StoreOrderPreview,

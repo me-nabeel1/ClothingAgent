@@ -73,6 +73,11 @@ class CatalogService:
             working = working.model_copy(update={"maximum_price": expanded_budget})
             relaxed.append("budget_15_percent")
             rows = await self._repository.search_rows(working)
+            
+        if request.allow_relaxation and not rows and request.maximum_price is not None:
+            working = working.model_copy(update={"maximum_price": None})
+            relaxed.append("budget_dropped")
+            rows = await self._repository.search_rows(working)
 
         offers = []
         if self._promotions:
@@ -253,7 +258,7 @@ class CatalogService:
             ProductSearchRequest(
                 in_stock_only=True,
                 allow_relaxation=False,
-                limit=20,
+                limit=150,
             )
         )
         groups: dict[str, list] = {}

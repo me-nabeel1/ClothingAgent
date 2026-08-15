@@ -20,11 +20,22 @@ class ProductInterest(BaseModel):
     requested_size: Optional[str] = None
 
 
+class CartItemContext(BaseModel):
+    """An item currently in the cart."""
+    item_id: str
+    product_name: str
+    color: str
+    size: str
+    quantity: int
+    price: float
+
+
 class CartContext(BaseModel):
     """Tracks the state of the active cart."""
     cart_id: Optional[UUID] = None
     item_count: int = 0
     subtotal: float = 0.0
+    items: list[CartItemContext] = Field(default_factory=list)
 
 
 class DeliveryContext(BaseModel):
@@ -44,6 +55,9 @@ class DisplayedProduct(BaseModel):
     product_id: int
     article_code: str
     product_name: str
+    price: float = 0.0
+    available_colors: list[str] = Field(default_factory=list)
+    available_sizes: list[str] = Field(default_factory=list)
 
 
 class ConversationState(BaseModel):
@@ -52,6 +66,7 @@ class ConversationState(BaseModel):
     session_id: str
     conversation_stage: str = "greeting"
     current_intent: Optional[str] = None
+    message_history: list[dict] = Field(default_factory=list)
 
     # Shopping preferences
     categories: list[str] = Field(default_factory=list)
@@ -61,6 +76,7 @@ class ConversationState(BaseModel):
     excluded_colors: list[str] = Field(default_factory=list)
     materials: list[str] = Field(default_factory=list)
     fits: list[str] = Field(default_factory=list)
+    seasons: list[str] = Field(default_factory=list)
     budget: Budget = Field(default_factory=Budget)
     branch_preference: Optional[str] = None
     
@@ -76,6 +92,9 @@ class ConversationState(BaseModel):
     cart: CartContext = Field(default_factory=CartContext)
     delivery: DeliveryContext = Field(default_factory=DeliveryContext)
     order_confirmed: bool = False
+    
+    # Track products shown in this session to prevent repetition when asking for "more"
+    seen_product_ids: set[int] = Field(default_factory=set)
     
     # Temporary search overrides for the current request
     current_search: dict[str, Any] = Field(default_factory=dict)
@@ -95,7 +114,7 @@ class ConversationState(BaseModel):
         # So explicit replacement of the list is correct when the user changes preferences.
         for list_field in [
             "categories", "occasions", "product_types", 
-            "preferred_colors", "excluded_colors", "materials", "fits"
+            "preferred_colors", "excluded_colors", "materials", "fits", "seasons"
         ]:
             if list_field in delta and delta[list_field] is not None:
                 # If an empty list is passed in the delta, it effectively clears it.
@@ -137,13 +156,26 @@ class ConversationState(BaseModel):
             
     def record_displayed_products(self, products: list[Any]) -> None:
         """Record products recently shown to the customer."""
-        self.displayed_products = [
-            DisplayedProduct(
-                product_id=p.product_id,
-                article_code=p.article_code,
-                product_name=p.product_name
-            ) for p in products
-        ]
+        for p in products:
+            available_colors = set()
+            available_sizes = set()
+            if hasattr(p, "variants"):
+                for v in p.variants:
+                    if v.is_available:
+                        available_colors.add(v.color)
+                        available_sizes.add(v.size)
+                        
+            self.displayed_products.append(
+                DisplayedProduct(
+                    product_id=p.product_id,
+                    article_code=p.article_code,
+                    product_name=p.product_name,
+                    price=float(p.final_price) if hasattr(p, 'final_price') else 0.0,
+                    available_colors=list(available_colors),
+                    available_sizes=list(available_sizes)
+                )
+            )
+            self.seen_product_ids.add(p.product_id)
         
     def clear_search_preferences(self) -> None:
         """Clear ephemeral search constraints (useful after switching topics)."""
@@ -153,6 +185,8 @@ class ConversationState(BaseModel):
         self.preferred_colors.clear()
         self.materials.clear()
         self.fits.clear()
+        self.seasons.clear()
         self.budget = Budget()
         self.selected_product_id = None
         self.current_search.clear()
+        self.seen_product_ids.clear()

@@ -39,7 +39,8 @@ class DeliveryInfoExtraction(BaseModel):
 
 class StructuredIntent(BaseModel):
     """The complete intention of the customer's message."""
-    intent: str = Field(description="One of: 'search', 'get_details', 'add_to_cart', 'remove_cart', 'checkout', 'place_order', 'general_chat', 'clear_preferences'")
+    intent: str = Field(description="One of: 'search', 'get_details', 'add_to_cart', 'remove_cart', 'checkout', 'place_order', 'general_chat', 'clear_preferences', 'get_promotions'")
+    clear_previous_preferences: bool = Field(False, description="Set to true if the user is completely changing the topic or abandoning a previous search.")
     filters: Optional[ExtractedFilters] = Field(default=None, description="Persistent filters to apply or merge based on explicit user preference statements")
     search_overrides: Optional[ExtractedFilters] = Field(default=None, description="Temporary filters for the current search (e.g. 'Show me blue shirts' vs 'I prefer blue')")
     delivery_info: Optional[DeliveryInfoExtraction] = Field(default=None, description="Extracted delivery details when the user provides them during checkout")
@@ -82,14 +83,23 @@ class IntentExtractor:
             f"Materials: {context.supported_attributes}\n"
             f"Branches: {[b.branch_code for b in context.branches]}\n\n"
             "Rules:\n"
-            "1. If the user asks for products, intent is 'search'. Provide the filters.\n"
-            "2. Map words to the exact vocabulary above. For example, 'wedding' -> 'wedding'.\n"
-            "3. 'selected_product_index' should be a number (1, 2, 3) if they refer to 'the first one', etc.\n"
-            "4. Differentiate explicit preferences from temporary searches:\n"
+            "1. If the user asks to see products, intent is 'search'. Provide the filters.\n"
+            "2. If the user explicitly asks to add a product to the cart, intent MUST be 'add_to_cart'. Place mentioned attributes in 'search_overrides'.\n"
+            "3. If the user wants to review their cart or begin checkout, intent is 'checkout'. If the user explicitly confirms they want to finalize/place the order (e.g. saying 'yes' when asked to place order), intent MUST be 'place_order' and set 'order_confirmed' to true.\n"
+            "4. Map words to the exact vocabulary above. For example, 'wedding' -> 'wedding'.\n"
+            "5. 'selected_product_index' should be a number (1, 2, 3) if they refer to 'the first one', 'option 4', etc.\n"
+            "6. Differentiate explicit preferences from temporary searches:\n"
             "   - If the user explicitly states a preference (e.g., 'I like black', 'My budget is 5000'), put those in 'filters'.\n"
             "   - If the user asks for a temporary search (e.g., 'Show me blue shirts'), put those in 'search_overrides'.\n"
             "   - Do not overwrite persistent preferences with temporary search terms.\n"
-            "5. Context Preservation (CRITICAL): If the user makes a follow-up refinement (e.g., 'show me cheaper', 'do you have IT in maroon', 'larger size') without explicitly starting a new search, you MUST infer ALL their previously active search constraints (Category, Color, Size, etc.) from the 'Current state summary' and include them in 'search_overrides', modifying ONLY the specific attribute they asked to refine (e.g., lower the budget, change the color). Never drop existing context unless the user explicitly changes it.\n"
+            "   - CRITICAL: If the user mentions a category (e.g., 'pants', 't-shirts', 'jeans'), you MUST place the exact matching vocabulary word (e.g. 'Pants', 'T-Shirts') into 'categories' under 'search_overrides' (or 'filters' if persistent).\n"
+            "7. Context Preservation (CRITICAL): If the user makes a follow-up refinement (e.g., 'show me cheaper', 'do you have IT in maroon', 'larger size') without explicitly starting a new search, you MUST infer ALL their previously active search constraints (Category, Color, Size, etc.) from the 'Current state summary' and include them in 'search_overrides', modifying ONLY the specific attribute they asked to refine (e.g., lower the budget, change the color). Never drop existing context unless the user explicitly changes it.\n"
+            "8. Topic Switching: If the user completely changes the topic (e.g. from looking for 'shoes' to 't-shirts') OR explicitly abandons a previous search that yielded no results (e.g., agent says 'I couldn't find anything for 500' and user says 'okay show me t-shirts instead'), you MUST set 'clear_previous_preferences' to true to reset their persistent filters before starting the new search.\n"
+            "9. Clarification Context (CRITICAL): If the Current Intent is 'add_to_cart' or 'get_details' and the user provides ONLY a size, color, index, or simple clarification (e.g., 'brown', 'large', 'l beige', 'the blue one'), you MUST keep the intent as 'add_to_cart' or 'get_details'. NEVER return 'search' in this scenario! Place the extracted attributes into 'search_overrides'.\n"
+            "10. Promotions: If the user asks for current offers, discounts, exclusive offers, or promotions, intent MUST be 'get_promotions'.\n"
+            "11. Checkout Form Submission: If the user message starts with 'Place order with corrected details:' (or similar structured format), you MUST set intent to 'place_order' and set 'order_confirmed' to true. Map the Name, Phone, City, and Address EXACTLY as provided in the message.\n"
+            "12. Delivery Info Extraction: Be careful not to mix up city and address. A known major city goes to 'city'. Specific local areas, villages, or street names (e.g., 'dinga') should go to 'delivery_address' or 'delivery_notes'.\n"
+            "13. Semantic Search (CRITICAL): ALWAYS extract the main items the user is looking for (e.g., 'casual shirt', 'black trousers', 'gym clothes') into 'search_query' even if you also map it to a category or other filters. This ensures the search engine has semantic context.\n"
         )
 
         messages = [

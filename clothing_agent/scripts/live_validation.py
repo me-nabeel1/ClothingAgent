@@ -8,7 +8,6 @@ from app.core.config import get_config
 from app.llm.client import LLMClient
 from app.clients.clothing_app.client import ClothingAppClient
 from app.agent.tools import AgentTools
-from app.agent.intent import IntentExtractor
 from app.agent.agent import SingleAgent
 from app.agent.state import ConversationState
 
@@ -34,8 +33,7 @@ async def main():
         llm = LLMClient(config, http_client)
         backend = ClothingAppClient(config, http_client)
         tools = AgentTools(backend)
-        extractor = IntentExtractor(llm)
-        agent = SingleAgent(llm, extractor, tools)
+        agent = SingleAgent(llm, tools)
         
         # Load store context
         print("Loading Store Context...")

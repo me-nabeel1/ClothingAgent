@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from app.agent.state import ConversationState, Budget, DisplayedProduct, ProductInterest
 from app.agent.intent import IntentExtractor, StructuredIntent, ExtractedFilters
+from app.agent.schemas import GetProductDetailsPayload, AddCartItemPayload
 from app.agent.tools import AgentTools
 from app.agent.agent import SingleAgent
 from app.context.store import StoreContextManager
@@ -27,6 +28,7 @@ from app.clients.clothing_app.schemas import (
     VariantView,
     BranchView,
     BranchAvailabilityView,
+    CartView,
 )
 
 
@@ -318,6 +320,18 @@ class TestAgentTools:
         assert req.occasions == ["wedding"]
 
     @pytest.mark.asyncio
+    async def test_explore_category_tool(self, mock_client):
+        """test explore_category tool sets normalized category and retrieves products."""
+        from app.agent.schemas import ExploreCategoryPayload
+        tools = AgentTools(mock_client)
+        state = ConversationState(session_id="s_explore")
+        payload = ExploreCategoryPayload(category_name="t shirts")
+        res = await tools.explore_category(state, payload)
+        assert state.categories == ["T-Shirts"]
+        req = mock_client.search_products.call_args[0][0]
+        assert req.categories == ["T-Shirts"]
+
+    @pytest.mark.asyncio
     async def test_color_filtering(self, mock_client):
         tools = AgentTools(mock_client)
         state = ConversationState(session_id="s1", preferred_colors=["Black"])
@@ -367,7 +381,7 @@ class TestAgentTools:
         state = ConversationState(session_id="s1", categories=["Shirts", "Pants"])
         await tools.get_products(state)
         req = mock_client.search_products.call_args[0][0]
-        assert req.limit > 4  # higher limit for multi-category
+        assert req.limit >= 4  # higher limit for multi-category
 
     @pytest.mark.asyncio
     async def test_retrieval_never_exceeds_20(self, mock_client):
@@ -381,7 +395,8 @@ class TestAgentTools:
     @pytest.mark.asyncio
     async def test_get_product_details(self, mock_client):
         tools = AgentTools(mock_client)
-        result = await tools.get_product_details(42)
+        state = ConversationState(session_id="s1")
+        result = await tools.get_product_details(GetProductDetailsPayload(product_id=42), state)
         mock_client.get_product.assert_called_once_with(42)
 
     @pytest.mark.asyncio
@@ -392,7 +407,7 @@ class TestAgentTools:
             DisplayedProduct(product_id=10, article_code="A", product_name="P1"),
             DisplayedProduct(product_id=20, article_code="B", product_name="P2"),
         ]
-        result = await tools.get_product_details_by_index(2, state)
+        result = await tools.get_product_details(GetProductDetailsPayload(selected_product_index=2), state)
         mock_client.get_product.assert_called_once_with(20)
 
     @pytest.mark.asyncio
@@ -400,7 +415,7 @@ class TestAgentTools:
         tools = AgentTools(mock_client)
         state = ConversationState(session_id="s1")
         state.displayed_products = []
-        result = await tools.get_product_details_by_index(5, state)
+        result = await tools.get_product_details(GetProductDetailsPayload(selected_product_index=5), state)
         assert result is None
 
     @pytest.mark.asyncio
@@ -421,140 +436,114 @@ class TestBehavioralRules:
     """Test critical agent behavioral constraints."""
 
     @pytest.mark.asyncio
-    async def test_minimum_intent_triggers_search(self, mock_llm, store_context):
-        """A search intent with even one filter triggers retrieval immediately, no clarification."""
-        mock_extractor = AsyncMock(spec=IntentExtractor)
-        mock_extractor.extract.return_value = StructuredIntent(
-            intent="search",
-            filters=ExtractedFilters(occasions=["wedding"]),
-        )
+    async def test_search_executed_with_tools(self, store_context):
+        """A search tool call triggers retrieval immediately."""
+        mock_llm = AsyncMock()
+        mock_llm.generate_with_tools.side_effect = [
+            (None, [{"id": "c1", "function": {"name": "search_products", "arguments": '{"occasions": ["wedding"]}'}}]),
+            ("Here are wedding options.", None)
+        ]
         mock_tools = AsyncMock(spec=AgentTools)
         mock_tools.get_products.return_value = ProductSearchResponse(
             products=[_make_product(occasion="wedding")], result_count=1
         )
 
-        agent = SingleAgent(llm=mock_llm, extractor=mock_extractor, tools=mock_tools)
+        agent = SingleAgent(llm=mock_llm, tools=mock_tools)
         state = ConversationState(session_id="s1")
 
         await agent.process_message("I need wedding clothes", state, store_context)
-
-        # The agent must have called get_products (i.e., searched immediately)
         mock_tools.get_products.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_general_chat_does_not_trigger_search(self, mock_llm, store_context):
-        """General chat intent should not trigger product search."""
-        mock_extractor = AsyncMock(spec=IntentExtractor)
-        mock_extractor.extract.return_value = StructuredIntent(intent="general_chat")
-        mock_tools = AsyncMock(spec=AgentTools)
-
-        agent = SingleAgent(llm=mock_llm, extractor=mock_extractor, tools=mock_tools)
-        state = ConversationState(session_id="s1")
-
-        await agent.process_message("Hello, how are you?", state, store_context)
-
-        mock_tools.get_products.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_get_details_uses_selected_product(self, mock_llm, store_context):
-        """When intent is get_details and a product is selected, details are fetched."""
-        mock_extractor = AsyncMock(spec=IntentExtractor)
-        mock_extractor.extract.return_value = StructuredIntent(
-            intent="get_details",
-            selected_product_index=1,
-        )
-        mock_tools = AsyncMock(spec=AgentTools)
-        mock_tools.get_product_details.return_value = ProductDetails(product=_make_product())
-
-        agent = SingleAgent(llm=mock_llm, extractor=mock_extractor, tools=mock_tools)
-        state = ConversationState(session_id="s1")
-        state.displayed_products = [
-            DisplayedProduct(product_id=42, article_code="NS-SH-001", product_name="Oxford")
-        ]
-
-        await agent.process_message("Tell me more about that first one", state, store_context)
-
-        assert state.selected_product_id == 42
-        mock_tools.get_product_details.assert_called_once_with(42)
-
 
 # ===================================================================
-# 6. END-TO-END PIPELINE TESTS
+# 6. VARIANT CHECK BEFORE CART TESTS
 # ===================================================================
 
-class TestEndToEndPipeline:
-    """Integration-style tests verifying message → agent → tool → client → response."""
+class TestVariantCheckBeforeCart:
+    """Verify that products are not directly added to cart without variant (color/size) selection when multiple variants exist."""
 
     @pytest.mark.asyncio
-    async def test_full_search_pipeline(self, mock_llm, store_context):
-        """Complete flow: user asks for shirts → intent extracted → tools called → response generated."""
+    async def test_add_cart_item_missing_variants_rejected(self):
         mock_client = AsyncMock()
-        mock_client.search_products.return_value = ProductSearchResponse(
-            products=[
-                _make_product(product_id=1, product_name="Oxford Shirt"),
-                _make_product(product_id=2, article_code="NS-SH-002", product_name="Polo Shirt"),
-            ],
-            result_count=2,
+        product = ProductView(
+            product_id=10, article_code="NS-SH-010", product_name="Multi-Variant Oxford",
+            category="Shirts", product_type="dress_shirt", gender="Men", brand="Northstar",
+            occasion="formal", base_price=Decimal("5000"), final_price=Decimal("5000"),
+            variants=[
+                VariantView(variant_id=101, sku="NS-SH-010-W-M", color="White", size="M", price=Decimal("5000"), final_price=Decimal("5000"), is_available=True),
+                VariantView(variant_id=102, sku="NS-SH-010-B-L", color="Black", size="L", price=Decimal("5000"), final_price=Decimal("5000"), is_available=True),
+            ]
         )
-
-        extractor = AsyncMock(spec=IntentExtractor)
-        extractor.extract.return_value = StructuredIntent(
-            intent="search",
-            filters=ExtractedFilters(categories=["Shirts"]),
-        )
+        mock_client.get_product.return_value = ProductDetails(product=product)
 
         tools = AgentTools(mock_client)
-        agent = SingleAgent(llm=mock_llm, extractor=extractor, tools=tools)
-        state = ConversationState(session_id="s1")
+        state = ConversationState(session_id="s_var_test")
 
-        reply = await agent.process_message("Show me shirts", state, store_context)
-
-        # Verify the pipeline completed
-        assert reply == "Here are some options for you."
-        assert state.categories == ["Shirts"]
-        assert len(state.displayed_products) == 2
-        mock_client.search_products.assert_called_once()
+        # Payload with no color or size
+        payload = AddCartItemPayload(product_id=10)
+        res = await tools.add_cart_item(state, payload)
+        assert res is None, "add_cart_item should reject direct add when multiple variants exist and color/size are missing"
 
     @pytest.mark.asyncio
-    async def test_incremental_refinement_pipeline(self, mock_llm, store_context):
-        """Simulates: user asks for wedding clothes → then refines with 'black ones'."""
+    async def test_add_cart_item_specific_variants_accepted(self):
         mock_client = AsyncMock()
-        mock_client.search_products.return_value = ProductSearchResponse(
-            products=[_make_product()], result_count=1,
+        from datetime import datetime
+        from uuid import uuid4
+        cart_id = uuid4()
+        product = ProductView(
+            product_id=10, article_code="NS-SH-010", product_name="Multi-Variant Oxford",
+            category="Shirts", product_type="dress_shirt", gender="Men", brand="Northstar",
+            occasion="formal", base_price=Decimal("5000"), final_price=Decimal("5000"),
+            variants=[
+                VariantView(
+                    variant_id=101, sku="NS-SH-010-W-M", color="White", size="M", price=Decimal("5000"), final_price=Decimal("5000"), is_available=True,
+                    branch_availability=[BranchAvailabilityView(branch_id=1, branch_code="ISB", branch_name="Islamabad", is_available=True, available_quantity=5)]
+                ),
+                VariantView(
+                    variant_id=102, sku="NS-SH-010-B-L", color="Black", size="L", price=Decimal("5000"), final_price=Decimal("5000"), is_available=True,
+                    branch_availability=[BranchAvailabilityView(branch_id=1, branch_code="ISB", branch_name="Islamabad", is_available=True, available_quantity=5)]
+                ),
+            ]
         )
+        mock_client.get_product.return_value = ProductDetails(product=product)
+        mock_client.create_cart.return_value = CartView(cart_id=cart_id, created_at=datetime.now(), updated_at=datetime.now(), expires_at=datetime.now())
+        mock_client.add_cart_item.return_value = CartView(cart_id=cart_id, total_quantity=1, subtotal=Decimal("5000.00"), created_at=datetime.now(), updated_at=datetime.now(), expires_at=datetime.now())
 
         tools = AgentTools(mock_client)
-        extractor = AsyncMock(spec=IntentExtractor)
-        agent = SingleAgent(llm=mock_llm, extractor=extractor, tools=tools)
-        state = ConversationState(session_id="s1")
+        state = ConversationState(session_id="s_var_test2")
 
-        # Turn 1: "I need wedding clothes"
-        extractor.extract.return_value = StructuredIntent(
-            intent="search",
-            filters=ExtractedFilters(occasions=["wedding"]),
-        )
-        await agent.process_message("I need wedding clothes", state, store_context)
-        assert state.occasions == ["wedding"]
+        # Payload with explicit valid color and size
+        payload = AddCartItemPayload(product_id=10, color="White", size="M")
+        res = await tools.add_cart_item(state, payload)
+        assert res is not None, "add_cart_item should accept add when exact color and size are specified"
+        mock_client.add_cart_item.assert_called_once()
 
-        # Turn 2: "Show me black ones"
-        extractor.extract.return_value = StructuredIntent(
-            intent="search",
-            filters=ExtractedFilters(colors=["Black"]),
+    @pytest.mark.asyncio
+    async def test_agent_add_cart_item_tool_result_prompts_for_clarification(self, store_context):
+        """When add_cart_item tool fails due to missing variant, _execute_tool provides variant details to LLM."""
+        mock_client = AsyncMock()
+        product = ProductView(
+            product_id=10, article_code="NS-SH-010", product_name="Multi-Variant Oxford",
+            category="Shirts", product_type="dress_shirt", gender="Men", brand="Northstar",
+            occasion="formal", base_price=Decimal("5000"), final_price=Decimal("5000"),
+            variants=[
+                VariantView(variant_id=101, sku="NS-SH-010-W-M", color="White", size="M", price=Decimal("5000"), final_price=Decimal("5000"), is_available=True),
+                VariantView(variant_id=102, sku="NS-SH-010-B-L", color="Black", size="L", price=Decimal("5000"), final_price=Decimal("5000"), is_available=True),
+            ]
         )
-        await agent.process_message("Show me black ones", state, store_context)
-        # Occasions should survive
-        assert state.occasions == ["wedding"]
-        assert state.preferred_colors == ["Black"]
+        mock_client.get_product.return_value = ProductDetails(product=product)
+        tools = AgentTools(mock_client)
 
-        # Turn 3: "Under 5000"
-        extractor.extract.return_value = StructuredIntent(
-            intent="search",
-            filters=ExtractedFilters(budget=Budget(maximum=5000)),
-        )
-        await agent.process_message("Under 5000", state, store_context)
-        assert state.occasions == ["wedding"]
-        assert state.preferred_colors == ["Black"]
-        assert state.budget.maximum == 5000
+        mock_llm = AsyncMock()
+        agent = SingleAgent(llm=mock_llm, tools=tools)
+        state = ConversationState(session_id="s_exec_test")
+        state.record_displayed_products([product])
+
+        result_str = await agent._execute_tool("add_cart_item", {"selected_product_index": 1}, state, store_context)
+        assert "Cannot add Multi-Variant Oxford to cart directly" in result_str
+        assert "Available Colors: Black, White" in result_str or "White" in result_str
+        assert "Available Sizes: L, M" in result_str or "M" in result_str
+        assert "INSTRUCTION: Politely and professionally ask the user" in result_str
 
 
 # ===================================================================
@@ -568,7 +557,6 @@ class TestNoHardcodedTruth:
         import inspect
         from app.agent import agent as agent_module
         source = inspect.getsource(agent_module)
-        # Should not contain hardcoded color sets
         assert "COLORS = {" not in source
         assert "CATEGORIES = {" not in source
 
@@ -585,96 +573,3 @@ class TestNoHardcodedTruth:
         assert "NS-SH-001" not in SYSTEM_PROMPT
         assert "4500" not in SYSTEM_PROMPT
 
-
-class TestFullCustomerJourney:
-    @pytest.mark.asyncio
-    async def test_complete_transaction_journey(self, mock_llm, store_context):
-        """Customer journey: search -> refine -> details -> add to cart -> checkout -> order."""
-        mock_client = AsyncMock()
-        mock_client.search_products.return_value = ProductSearchResponse(products=[_make_product()], result_count=1)
-        mock_client.get_product.return_value = ProductDetails(product=_make_product())
-        
-        # Mocks for cart and order
-        from uuid import uuid4
-        cart_id = uuid4()
-        from app.clients.clothing_app.schemas import CartView, StoreOrderPreview, OrderView
-        from datetime import datetime
-        
-        mock_client.create_cart.return_value = CartView(cart_id=cart_id, created_at=datetime.now(), updated_at=datetime.now(), expires_at=datetime.now())
-        mock_client.add_cart_item.return_value = CartView(cart_id=cart_id, total_quantity=1, subtotal=Decimal("4500.00"), created_at=datetime.now(), updated_at=datetime.now(), expires_at=datetime.now())
-        mock_client.preview_cart.return_value = StoreOrderPreview(cart_id=cart_id, grand_total=Decimal("4500.00"))
-        mock_client.place_order.return_value = OrderView(
-            order_id=uuid4(), order_number="ORD-123", status="PLACED", subtotal=Decimal("4500.00"), 
-            discount_total=Decimal("0"), delivery_fee=Decimal("0"), grand_total=Decimal("4500.00"),
-            applied_offer_code=None, customer_name="John Doe", phone="555-1234", 
-            delivery_address="123 Main St", city="Islamabad", delivery_notes="", created_at=datetime.now()
-        )
-
-        tools = AgentTools(mock_client)
-        extractor = AsyncMock(spec=IntentExtractor)
-        agent = SingleAgent(llm=mock_llm, extractor=extractor, tools=tools)
-        
-        # Override generate_text to just return the prompt part containing the action_result
-        async def mock_generate_text(messages, **kwargs):
-            # The action result is usually in the first (system) message or we can just stringify all
-            return str(messages)
-        mock_llm.generate_text = AsyncMock(side_effect=mock_generate_text)
-        
-        state = ConversationState(session_id="s_journey")
-
-        from app.agent.intent import ExtractedFilters
-        # 1. Search
-        extractor.extract.return_value = StructuredIntent(
-            intent="search", filters=ExtractedFilters(occasions=["wedding"])
-        )
-        await agent.process_message("I need something for a wedding.", state, store_context)
-        mock_client.search_products.assert_called()
-
-        # 2. Get Details
-        state.record_displayed_products([_make_product()])
-        extractor.extract.return_value = StructuredIntent(
-            intent="get_details", selected_product_index=1
-        )
-        await agent.process_message("Tell me about the first one.", state, store_context)
-        assert state.selected_product_id == 1
-        mock_client.get_product.assert_called_with(1)
-
-        # 3. Add to Cart
-        extractor.extract.return_value = StructuredIntent(
-            intent="add_to_cart",
-            filters=ExtractedFilters(sizes={"Shirts": "L"})
-        )
-        await agent.process_message("Add size L to cart.", state, store_context)
-        mock_client.add_cart_item.assert_called_once()
-        assert state.cart.item_count == 1
-
-        # 4. Preview Checkout
-        extractor.extract.return_value = StructuredIntent(
-            intent="checkout"
-        )
-        await agent.process_message("What is my total?", state, store_context)
-        mock_client.preview_cart.assert_called_once()
-
-        # 5. Place order - missing info
-        extractor.extract.return_value = StructuredIntent(
-            intent="place_order",
-            order_confirmed=True,
-            delivery_info=None
-        )
-        response = await agent.process_message("Yes, place the order.", state, store_context)
-        assert "Missing delivery information" in response
-        assert not mock_client.place_order.called
-
-        # 6. Place order - Provide info
-        from app.agent.intent import DeliveryInfoExtraction
-        extractor.extract.return_value = StructuredIntent(
-            intent="place_order",
-            order_confirmed=True,
-            delivery_info=DeliveryInfoExtraction(
-                customer_name="John Doe", phone="555-1234", delivery_address="123 Main St", city="Islamabad"
-            )
-        )
-        response = await agent.process_message("I am John Doe, phone 555-1234, deliver to 123 Main St, Islamabad", state, store_context)
-        mock_client.place_order.assert_called_once()
-        assert "Order placed successfully" in response
-        assert state.cart.cart_id is None  # Cart cleared

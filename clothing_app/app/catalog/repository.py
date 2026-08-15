@@ -49,16 +49,42 @@ class CatalogRepository:
             matching_categories = []
             parent = aliased(Category)
             for category in request.categories:
-                category_term = category.strip().lower()
+                raw_term = category.strip().lower()
+                clean_term = raw_term.replace("-", "").replace(" ", "")
+                words = raw_term.replace("-", " ").split()
+                
                 conditions_for_category = [
-                    func.lower(Category.category_name).contains(category_term),
-                    func.lower(Category.category_code).contains(category_term),
-                    func.lower(parent.category_name).contains(category_term),
+                    func.lower(Category.category_name).contains(raw_term),
+                    func.replace(func.replace(func.lower(Category.category_name), "-", ""), " ", "").contains(clean_term),
+                    func.lower(Category.category_code).contains(clean_term),
+                    func.lower(parent.category_name).contains(raw_term),
                 ]
-                if category_term in ("pants", "trouser", "trousers"):
+                for w in words:
+                    if len(w) >= 3 and w not in {"the", "for", "and"}:
+                        conditions_for_category.append(func.lower(Category.category_name).contains(w))
+                        
+                if clean_term in ("tshirt", "tshirts", "tee", "tees"):
                     conditions_for_category.extend([
-                        func.lower(Category.category_name).contains("pants"),
+                        func.lower(Category.category_name).contains("t-shirt"),
+                        func.lower(Category.category_code).contains("tshirt"),
+                        func.lower(Category.category_name).contains("polo"),
+                        func.lower(Category.category_name).contains("shirt"),
+                    ])
+                elif clean_term in ("shirt", "shirts"):
+                    conditions_for_category.extend([
+                        func.lower(Category.category_name).contains("shirt"),
+                        func.lower(Category.category_code).contains("shirt"),
+                    ])
+                elif clean_term in ("pant", "pants", "trouser", "trousers"):
+                    conditions_for_category.extend([
+                        func.lower(Category.category_name).contains("pant"),
                         func.lower(Category.category_name).contains("trouser"),
+                    ])
+                elif clean_term in ("hoodie", "hoodies", "jacket", "jackets", "outerwear"):
+                    conditions_for_category.extend([
+                        func.lower(Category.category_name).contains("outerwear"),
+                        func.lower(Category.category_name).contains("hoodie"),
+                        func.lower(Category.category_name).contains("jacket"),
                     ])
                     
                 query = (
@@ -168,7 +194,7 @@ class CatalogRepository:
                 request.sku,
             )
         )
-        if request.query_text and not request.semantic_tags and not structured_filters_present:
+        if request.query_text and not request.semantic_tags:
             terms = [
                 token
                 for token in re.findall(r"[a-zA-Z0-9-]+", request.query_text.lower())
@@ -185,11 +211,15 @@ class CatalogRepository:
                     Category.category_name,
                 )
                 conditions.append(
-                    or_(
+                    and_(
                         *[
-                            column.ilike(f"%{term}%")
+                            or_(
+                                *[
+                                    column.ilike(f"%{term}%")
+                                    for column in searchable_columns
+                                ]
+                            )
                             for term in terms
-                            for column in searchable_columns
                         ]
                     )
                 )

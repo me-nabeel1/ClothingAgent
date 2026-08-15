@@ -39,6 +39,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title=config.app_name,
     version="1.0.0",
+    root_path="/catalog",
     description=(
         "Minimal clothing-application APIs for local product retrieval, "
         "inventory availability, and temporary demo-cart actions."

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import json
 import re
 from typing import Literal, TypeVar
@@ -11,14 +12,19 @@ from app.core.config import AgentConfig
 from app.core.errors import DependencyUnavailableError
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
 T = TypeVar("T", bound=BaseModel)
 
 
 class LLMMessage(BaseModel):
     """One chat-completion message."""
 
-    role: Literal["system", "user", "assistant"]
-    content: str
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | None = None
+    tool_calls: list[dict] | None = None
+    tool_call_id: str | None = None
+    name: str | None = None
 
 
 class LLMClient:
@@ -49,6 +55,34 @@ class LLMClient:
             max_tokens=max_tokens,
         )
         return self._content(payload)
+        
+    async def generate_with_tools(
+        self,
+        messages: list[LLMMessage],
+        tools: list[dict],
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> tuple[str | None, list[dict] | None]:
+        """Return assistant text and/or tool calls."""
+        payload = await self._complete(
+            messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        try:
+            choices = payload["choices"]
+            first = choices[0]  # type: ignore[index]
+            message = first["message"]  # type: ignore[index]
+            content = message.get("content")
+            tool_calls = message.get("tool_calls")
+            return content, tool_calls
+        except (KeyError, IndexError, TypeError) as exc:
+            raise DependencyUnavailableError(
+                "The LLM returned an incomplete response.",
+                code="LLM_INVALID_RESPONSE",
+            ) from exc
 
     async def generate_structured(
         self,
@@ -101,6 +135,7 @@ class LLMClient:
         messages: list[LLMMessage],
         *,
         response_format: dict[str, object] | None = None,
+        tools: list[dict] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> dict[str, object]:
@@ -112,12 +147,14 @@ class LLMClient:
             )
         payload: dict[str, object] = {
             "model": self._config.llm_model,
-            "messages": [message.model_dump() for message in messages],
+            "messages": [message.model_dump(exclude_none=True) for message in messages],
             "temperature": self._config.llm_temperature if temperature is None else temperature,
             "max_tokens": max_tokens or self._config.llm_max_tokens,
         }
         if response_format:
             payload["response_format"] = response_format
+        if tools:
+            payload["tools"] = tools
         headers = {
             "Authorization": f"Bearer {self._config.llm_api_key.get_secret_value()}",
             "Content-Type": "application/json",
@@ -132,6 +169,42 @@ class LLMClient:
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
+            if isinstance(exc, httpx.HTTPStatusError):
+                logger.error(f"Groq API Error {exc.response.status_code}: {exc.response.text}")
+                try:
+                    err_json = exc.response.json()
+                    err_detail = err_json.get("error", {})
+                    failed_gen = err_detail.get("failed_generation")
+                    if failed_gen and isinstance(failed_gen, str):
+                        match = re.search(r"(?:<function=)?([a-zA-Z0-9_]+)\s*(\{.*\})\s*(?:</function>)?", failed_gen, flags=re.DOTALL)
+                        if match:
+                            func_name = match.group(1)
+                            raw_args = match.group(2)
+                            logger.info(f"Recovered tool call from failed_generation: {func_name}({raw_args})")
+                            return {
+                                "choices": [
+                                    {
+                                        "message": {
+                                            "role": "assistant",
+                                            "content": None,
+                                            "tool_calls": [
+                                                {
+                                                    "id": "call_recovered",
+                                                    "type": "function",
+                                                    "function": {
+                                                        "name": func_name,
+                                                        "arguments": raw_args,
+                                                    },
+                                                }
+                                            ],
+                                        }
+                                    }
+                                ]
+                            }
+                except Exception as parse_err:
+                    logger.warning(f"Failed to recover tool call from failed_generation: {parse_err}")
+            else:
+                logger.error(f"LLM Client Exception: {exc}")
             raise DependencyUnavailableError(
                 "The LLM service is currently unavailable.",
                 code="LLM_UNAVAILABLE",
