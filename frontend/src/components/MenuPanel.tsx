@@ -60,7 +60,7 @@ export function MenuPanel({ open, onClose, onAction }: MenuPanelProps) {
                           {image ? <img src={image} alt={product.product_name} style={{ mixBlendMode: "multiply" }} /> : <div className="product-card__placeholder">No image</div>}
                         </div>
                         <div style={{ fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{product.product_name}</div>
-                        <div style={{ fontSize: "11px", color: "var(--muted)" }}>PKR {product.final_price}</div>
+                        <div style={{ fontSize: "11px", color: "var(--muted)" }}>{Math.round(Number(product.final_price) || 0)} rupees</div>
                       </div>
                     );
                   })}

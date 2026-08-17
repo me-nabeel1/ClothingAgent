@@ -12,11 +12,8 @@ interface ProductCardProps {
 }
 
 function formatCurrency(value: string | number) {
-  return new Intl.NumberFormat("en-PK", {
-    style: "currency",
-    currency: "PKR",
-    maximumFractionDigits: 0,
-  }).format(Number(value));
+  const num = Math.round(Number(value) || 0);
+  return `${num.toLocaleString()} rupees`;
 }
 
 export function ProductCard({ product, position, disabled, onAction }: ProductCardProps) {

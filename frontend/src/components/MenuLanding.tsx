@@ -67,7 +67,7 @@ export function MenuLanding({ onEnterAgent }: MenuLandingProps) {
                         <div style={{ fontSize: "14px", fontWeight: "600", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: "4px" }}>
                           {product.product_name}
                         </div>
-                        <div style={{ fontSize: "13px", color: "var(--muted)" }}>PKR {product.final_price}</div>
+                        <div style={{ fontSize: "13px", color: "var(--muted)" }}>{Math.round(Number(product.final_price) || 0)} rupees</div>
                       </div>
                     </article>
                   );

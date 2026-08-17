@@ -13,11 +13,8 @@ interface CartPanelProps {
 }
 
 function money(value: string | number) {
-  return new Intl.NumberFormat("en-PK", {
-    style: "currency",
-    currency: "PKR",
-    maximumFractionDigits: 0,
-  }).format(Number(value));
+  const num = Math.round(Number(value) || 0);
+  return `${num.toLocaleString()} rupees`;
 }
 
 export function CartPanel({ cart, open, disabled, onClose, onAction, onUpdateQuantity, onRemoveItem }: CartPanelProps) {
