@@ -39,7 +39,7 @@ class DeliveryInfoExtraction(BaseModel):
 
 class StructuredIntent(BaseModel):
     """The complete intention of the customer's message."""
-    intent: str = Field(description="One of: 'search', 'get_details', 'add_to_cart', 'remove_cart', 'show_cart', 'checkout', 'place_order', 'general_chat', 'clear_preferences', 'get_promotions'")
+    intent: str = Field(description="One of: 'search', 'get_details', 'add_to_cart', 'remove_cart', 'show_cart', 'checkout', 'place_order', 'general_chat', 'clear_preferences', 'reset_session', 'get_promotions'")
     clear_previous_preferences: bool = Field(False, description="Set to true if the user is completely changing the topic or abandoning a previous search.")
     filters: Optional[ExtractedFilters] = Field(default=None, description="Persistent filters to apply or merge based on explicit user preference statements")
     search_overrides: Optional[ExtractedFilters] = Field(default=None, description="Temporary filters for the current search (e.g. 'Show me blue shirts' vs 'I prefer blue')")

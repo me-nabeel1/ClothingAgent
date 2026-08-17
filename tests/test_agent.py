@@ -627,3 +627,62 @@ class TestProductCardSynchronization:
         assert state.displayed_products[0].product_name == "Classic Oxford"
 
 
+# ===================================================================
+# 9. SESSION ISOLATION & FLUSH TESTS
+# ===================================================================
+
+class TestSessionIsolationAndReset:
+    """Verify that sessions are completely isolated and can be cleanly flushed."""
+
+    def test_state_reset_flushes_all_fields(self):
+        state = ConversationState(session_id="s_reset_test")
+        state.categories = ["Shirts", "Pants"]
+        state.preferred_colors = ["Black"]
+        state.size_preferences = {"shirt": "L"}
+        state.cart.cart_id = "cart-123"
+        state.cart.item_count = 3
+        state.cart.subtotal = 12000.0
+        state.message_history.append({"role": "user", "content": "hi"})
+        state.product_cards = [DisplayedProduct(product_id=1, article_code="A1", product_name="P1").to_product_card()]
+
+        state.reset()
+
+        assert state.categories == []
+        assert state.preferred_colors == []
+        assert state.size_preferences == {}
+        assert state.cart.cart_id is None
+        assert state.cart.item_count == 0
+        assert state.cart.subtotal == 0.0
+        assert state.message_history == []
+        assert state.product_cards == []
+        assert state.conversation_stage == "greeting"
+
+    @pytest.mark.asyncio
+    async def test_agent_message_reset_trigger(self, store_context):
+        mock_llm = AsyncMock()
+        agent = SingleAgent(llm=mock_llm, intent_extractor=AsyncMock())
+        state = ConversationState(session_id="s_msg_reset")
+        state.cart.cart_id = "cart-xyz"
+        state.cart.item_count = 2
+
+        reply = await agent.process_message("start fresh", state, store_context)
+
+        assert "reset your session" in reply
+        assert state.cart.cart_id is None
+        assert state.cart.item_count == 0
+
+    @pytest.mark.asyncio
+    async def test_session_reset_endpoint(self):
+        from app.core.chat import get_or_create_session, reset_session_endpoint, SessionResetRequest
+        state = get_or_create_session("s_endpoint_test")
+        state.categories = ["Shirts"]
+        state.cart.item_count = 5
+
+        res = await reset_session_endpoint(SessionResetRequest(session_id="s_endpoint_test"))
+
+        assert res.session_id == "s_endpoint_test"
+        assert res.state.categories == []
+        assert res.state.cart.item_count == 0
+
+
+

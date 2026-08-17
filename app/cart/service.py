@@ -37,11 +37,11 @@ class CartService:
             return None
         return f"/assets/products/{image_url}"
 
-    async def create(self) -> CartView:
+    async def create(self, session_id: str = "demo-session") -> CartView:
         expires_at = datetime.now(timezone.utc) + timedelta(
             hours=self._config.cart_ttl_hours
         )
-        cart = await self._repository.create("demo-session", "northstar", expires_at)
+        cart = await self._repository.create(session_id, "northstar", expires_at)
         return await self._to_view(cart)
 
     async def get(self, cart_id: UUID) -> CartView:

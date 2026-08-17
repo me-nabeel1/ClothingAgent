@@ -36,8 +36,11 @@ class SingleAgent:
         """Process one conversational turn using the IntentPlan pipeline."""
         logger.info("agent_processing_message", extra={"event": "process_message"})
 
-        # Reset turn intent for the new turn
-        state.current_intent = "general"
+        # If user explicitly requests resetting session or starting fresh
+        msg_clean = user_message.strip().lower()
+        if msg_clean in ["reset", "reset session", "start fresh", "start over", "new chat", "clear session", "restart", "نئی سیشن", "نیا سیشن", "شروع سے", "دوبارہ شروع کرو"]:
+            state.reset()
+            return "Hello! I have reset your session and cleared all previous history. How can I assist you with your style today?"
 
         # 1. Append user message to history
         state.message_history.append({"role": "user", "content": user_message})
@@ -120,9 +123,14 @@ class SingleAgent:
         if intent.intent == "general_chat":
             return "General chat intent detected. No tool executed."
 
+        if intent.intent in ["reset_session", "clear_session", "new_session"]:
+            state.reset()
+            return "Session reset successfully. All previous state cleared."
+
         if intent.intent == "clear_preferences":
             state.clear_search_preferences()
             state.displayed_products.clear()
+            state.product_cards.clear()
             return "Preferences cleared."
 
         # Route "remove_cart" with no specific item to "clear_cart"

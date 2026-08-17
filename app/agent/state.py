@@ -435,6 +435,37 @@ class ConversationState(BaseModel):
         self.checkout_card = None
         self.order_card = None
 
+    def reset(self) -> None:
+        """Completely flush all session states, preferences, cart, delivery info, product cards, and message history for a 100% fresh session."""
+        self.conversation_stage = "greeting"
+        self.current_intent = None
+        self.message_history.clear()
+
+        self.categories.clear()
+        self.occasions.clear()
+        self.product_types.clear()
+        self.preferred_colors.clear()
+        self.excluded_colors.clear()
+        self.materials.clear()
+        self.fits.clear()
+        self.seasons.clear()
+        self.budget = Budget()
+        self.branch_preference = None
+        self.size_preferences.clear()
+
+        self.displayed_products.clear()
+        self.selected_product_id = None
+        self.requested_unavailable_products.clear()
+
+        self.cart = CartContext()
+        self.delivery = DeliveryContext()
+        self.order_confirmed = False
+
+        self.seen_product_ids.clear()
+        self.current_search.clear()
+
+        self.clear_cards()
+
     def filter_displayed_cards(self, indices: list[int]) -> None:
         """Filter displayed products and cards to only the 1-based indices specified."""
         if not indices or not self.displayed_products:
