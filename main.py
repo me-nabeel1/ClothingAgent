@@ -81,6 +81,11 @@ app.include_router(promotions_router, prefix="/api/v1")
 app.include_router(agent_health_router, prefix="/agent")
 app.include_router(chat_router, prefix=f"/agent{config.api_prefix}")
 app.include_router(chat_router, prefix=config.api_prefix)
+app.include_router(chat_router, prefix="/agent")
+app.include_router(chat_router, prefix="/api")
+app.include_router(chat_router, prefix="/v1")
+app.include_router(chat_router, prefix="/api/v1/agent")
+app.include_router(chat_router, prefix="/catalog/api/v1")
 app.include_router(chat_router, prefix="")
 
 # ------------------------------------------------------------------
