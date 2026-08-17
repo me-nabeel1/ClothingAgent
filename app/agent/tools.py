@@ -221,7 +221,8 @@ class AgentTools:
             return "No products found matching the criteria."
         lines = [f"Found {len(response.products)} products:"]
         for idx, p in enumerate(response.products, 1):
-            lines.append(f"Option {idx}: {p.product_name} | Price: Rs {p.final_price} | Type: {p.product_type} | Category: {p.category}")
+            price_int = int(float(p.final_price)) if p.final_price is not None else 0
+            lines.append(f"Option {idx}: {p.product_name} - {price_int} rupees.")
         return "\n".join(lines)
 
 
@@ -263,7 +264,8 @@ class AgentTools:
             if details and details.product:
                 p = details.product
                 detailed_products.append(p)
-                line_entry = [f"Details for {p.product_name}:", f"Price: Rs {p.final_price}", f"Description: {p.description or 'N/A'}"]
+                price_int = int(float(p.final_price)) if p.final_price is not None else 0
+                line_entry = [f"Details for {p.product_name}:", f"Price: {price_int} rupees.", f"Description: {p.description or 'N/A'}."]
                 if p.variants:
                     colors = sorted(list(set(v.color for v in p.variants if v.is_available)))
                     sizes = sorted(list(set(v.size for v in p.variants if v.is_available)))
@@ -392,12 +394,12 @@ class AgentTools:
             state.record_displayed_products([details.product])
             state.product_cards = [ProductCard(product=details.product)]
         cart_item_lines = [
-            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
+            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: {int(float(item.unit_price))} rupees."
             for idx, item in enumerate(cart.items, 1)
         ]
         return (
             f"Successfully added {payload.quantity}x {details.product.product_name} ({payload.color}, {payload.size}) to cart.\n\n"
-            f"Updated Cart Contents ({cart.total_quantity} items total, Subtotal: Rs {cart.subtotal}):\n"
+            f"Updated Cart Contents ({cart.total_quantity} items total, Subtotal: {int(float(cart.subtotal))} rupees):\n"
             + "\n".join(cart_item_lines)
         )
 
@@ -494,12 +496,12 @@ class AgentTools:
             return f"Successfully removed {target_item.product_name if target_item else 'item'} from cart. Cart is now empty."
 
         item_lines = [
-            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
+            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: {int(float(item.unit_price))} rupees."
             for idx, item in enumerate(cart.items, 1)
         ]
         return (
             f"Successfully removed {target_item.product_name if target_item else 'item'} from cart.\n\n"
-            f"Remaining Cart Contents ({cart.total_quantity} items total, Subtotal: Rs {cart.subtotal}):\n"
+            f"Remaining Cart Contents ({cart.total_quantity} items total, Subtotal: {int(float(cart.subtotal))} rupees):\n"
             + "\n".join(item_lines)
         )
 
@@ -524,11 +526,11 @@ class AgentTools:
         )
         
         lines = ["Checkout Preview:"]
-        lines.append(f"Subtotal: Rs {preview.subtotal}")
+        lines.append(f"Subtotal: {int(float(preview.subtotal))} rupees.")
         if preview.discount_total > 0:
-            lines.append(f"Discount: Rs {preview.discount_total}")
-        lines.append(f"Delivery: Rs {preview.delivery_fee}")
-        lines.append(f"Total: Rs {preview.total_amount}")
+            lines.append(f"Discount: {int(float(preview.discount_total))} rupees.")
+        lines.append(f"Delivery: {int(float(preview.delivery_fee))} rupees.")
+        lines.append(f"Total: {int(float(preview.total_amount))} rupees.")
         return "\n".join(lines)
 
 
@@ -561,7 +563,7 @@ class AgentTools:
         state.cart.item_count = 0
         state.cart.subtotal = 0.0
         state.cart.items = []
-        return f"Order placed successfully! Order Number: {order.order_number}. Total: Rs {order.total_amount}."
+        return f"Order placed successfully! Order Number: {order.order_number}. Total: {int(float(order.total_amount))} rupees."
 
 
     async def show_cart(self, state: ConversationState, payload: ShowCartPayload) -> str:
@@ -608,10 +610,10 @@ class AgentTools:
             state.product_cards = [ProductCard(product=p) for p in cart_products]
 
         item_lines = [
-            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
+            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: {int(float(item.unit_price))} rupees."
             for idx, item in enumerate(cart.items, 1)
         ]
-        return f"Current Cart Contents ({cart.total_quantity} items total, Subtotal: Rs {cart.subtotal}):\n" + "\n".join(item_lines)
+        return f"Current Cart Contents ({cart.total_quantity} items total, Subtotal: {int(float(cart.subtotal))} rupees):\n" + "\n".join(item_lines)
 
     async def update_cart_item(self, state: ConversationState, payload: UpdateCartItemPayload) -> str:
         state.clear_cards()
