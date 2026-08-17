@@ -430,6 +430,24 @@ class AgentTools:
         if not target_item_id:
             return "Could not identify which item to remove."
             
+        # Identify target item before removal to fetch its product card
+        target_item = next((i for i in state.cart.items if i.item_id == target_item_id), None)
+        removed_product = None
+        if target_item:
+            pid = None
+            if state.cart_card and state.cart_card.items:
+                for ci in state.cart_card.items:
+                    if str(ci.item_id) == target_item_id:
+                        pid = ci.product_id
+                        break
+            if pid:
+                try:
+                    details = await self._client.get_product(pid)
+                    if details and details.product:
+                        removed_product = details.product
+                except Exception as e:
+                    logger.warning(f"Could not fetch product details for removed item: {e}")
+
         cart = await self._client.remove_cart_item(state.cart.cart_id, UUID(target_item_id))
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
@@ -449,15 +467,35 @@ class AgentTools:
             item_count=cart.total_quantity,
             subtotal=float(cart.subtotal)
         )
+
+        if removed_product:
+            state.record_displayed_products([removed_product])
+            state.product_cards = [ProductCard(product=removed_product)]
+        elif cart.items:
+            remaining_products = []
+            seen_pids = set()
+            for ci in cart.items:
+                if ci.product_id not in seen_pids:
+                    seen_pids.add(ci.product_id)
+                    try:
+                        details = await self._client.get_product(ci.product_id)
+                        if details and details.product:
+                            remaining_products.append(details.product)
+                    except Exception:
+                        pass
+            if remaining_products:
+                state.record_displayed_products(remaining_products)
+                state.product_cards = [ProductCard(product=p) for p in remaining_products]
+
         if not cart.items:
-            return "Item successfully removed. Cart is now empty."
+            return f"Successfully removed {target_item.product_name if target_item else 'item'} from cart. Cart is now empty."
 
         item_lines = [
             f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
             for idx, item in enumerate(cart.items, 1)
         ]
         return (
-            f"Item successfully removed from cart.\n\n"
+            f"Successfully removed {target_item.product_name if target_item else 'item'} from cart.\n\n"
             f"Remaining Cart Contents ({cart.total_quantity} items total, Subtotal: Rs {cart.subtotal}):\n"
             + "\n".join(item_lines)
         )
@@ -548,6 +586,23 @@ class AgentTools:
         )
         if not cart.items:
             return "Cart is currently empty."
+
+        # Fetch full rich product view for each cart item to render exact product cards
+        cart_products = []
+        seen_pids = set()
+        for item in cart.items:
+            if item.product_id not in seen_pids:
+                seen_pids.add(item.product_id)
+                try:
+                    details = await self._client.get_product(item.product_id)
+                    if details and details.product:
+                        cart_products.append(details.product)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch cart product details {item.product_id}: {e}")
+
+        if cart_products:
+            state.record_displayed_products(cart_products)
+            state.product_cards = [ProductCard(product=p) for p in cart_products]
 
         item_lines = [
             f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"

@@ -622,8 +622,8 @@ class TestProductCardSynchronization:
         state.sync_displayed_products_with_reply(reply)
 
         assert len(state.displayed_products) == 1
-        # Product cards are suppressed during details queries
-        assert len(state.product_cards) == 0
+        # Product cards show the requested detailed product
+        assert len(state.product_cards) == 1
         assert state.displayed_products[0].product_name == "Classic Oxford"
 
 
