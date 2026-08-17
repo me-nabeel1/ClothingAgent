@@ -511,9 +511,20 @@ class ConversationState(BaseModel):
 
         if matched_products:
             self.displayed_products = matched_products
+        else:
+            self.displayed_products = []
 
-        # Product cards are displayed ONLY during search / discovery intents ('search', 'explore_category')
-        if self.current_intent in ["search", "explore_category"] and matched_products:
-            self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
+        matched_ids = {dp.product_id for dp in self.displayed_products}
+
+        # Product cards are displayed ONLY during search / discovery intents ('search', 'explore_category') when products are actually described in text.
+        if self.current_intent in ["search", "explore_category"] and self.displayed_products:
+            if self.product_cards:
+                filtered_cards = [c for c in self.product_cards if c.product.product_id in matched_ids]
+                if filtered_cards:
+                    self.product_cards = filtered_cards
+                else:
+                    self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
+            else:
+                self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
         else:
             self.product_cards = []
