@@ -7,8 +7,8 @@ import pytest
 
 def api_route_records() -> set[tuple[str, str]]:
     """Return API method/path pairs across direct and included routers."""
-
     records: set[tuple[str, str]] = set()
+
     for route in app.routes:
         if isinstance(route, APIRoute):
             records.update((method, route.path) for method in route.methods)
@@ -16,16 +16,15 @@ def api_route_records() -> set[tuple[str, str]]:
 
         original_router = getattr(route, "original_router", None)
         include_context = getattr(route, "include_context", None)
-        if original_router is None or include_context is None:
-            continue
+        if original_router is not None and include_context is not None:
+            prefix = include_context.prefix.rstrip("/")
+            for included_route in original_router.routes:
+                if isinstance(included_route, APIRoute):
+                    records.update(
+                        (method, f"{prefix}{included_route.path}")
+                        for method in included_route.methods
+                    )
 
-        prefix = include_context.prefix.rstrip("/")
-        for included_route in original_router.routes:
-            if isinstance(included_route, APIRoute):
-                records.update(
-                    (method, f"{prefix}{included_route.path}")
-                    for method in included_route.methods
-                )
     return records
 
 
@@ -35,18 +34,18 @@ def test_only_required_api_routes_are_exposed() -> None:
     routes = api_route_records()
     expected = {
         ("GET", "/health"),
-        ("GET", "/health/ready"),
-        ("GET", "/api/v1/products"),
-        ("POST", "/api/v1/products/search"),
-        ("GET", "/api/v1/products/{product_id}"),
-        ("GET", "/api/v1/branches"),
-        ("GET", "/api/v1/inventory/availability"),
-        ("POST", "/api/v1/carts"),
-        ("GET", "/api/v1/carts/{cart_id}"),
-        ("POST", "/api/v1/carts/{cart_id}/items"),
-        ("PATCH", "/api/v1/carts/{cart_id}/items/{item_id}"),
-        ("DELETE", "/api/v1/carts/{cart_id}/items/{item_id}"),
-        ("DELETE", "/api/v1/carts/{cart_id}/items"),
+        ("GET", "/catalog/health/ready"),
+        ("GET", "/catalog/api/v1/products"),
+        ("POST", "/catalog/api/v1/products/search"),
+        ("GET", "/catalog/api/v1/products/{product_id}"),
+        ("GET", "/catalog/api/v1/branches"),
+        ("GET", "/catalog/api/v1/inventory/availability"),
+        ("POST", "/catalog/api/v1/carts"),
+        ("GET", "/catalog/api/v1/carts/{cart_id}"),
+        ("POST", "/catalog/api/v1/carts/{cart_id}/items"),
+        ("PATCH", "/catalog/api/v1/carts/{cart_id}/items/{item_id}"),
+        ("DELETE", "/catalog/api/v1/carts/{cart_id}/items/{item_id}"),
+        ("DELETE", "/catalog/api/v1/carts/{cart_id}/items"),
     }
     assert expected.issubset(routes)
 

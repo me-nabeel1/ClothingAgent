@@ -37,11 +37,14 @@ class Base(DeclarativeBase):
 
 @lru_cache
 def get_engine() -> AsyncEngine:
-    """Create the async PostgreSQL engine lazily on first database use."""
+    """Create the async database engine lazily on first database use."""
 
     config = get_config()
+    db_url = config.database_url
+    if "sqlite" in db_url:
+        return create_async_engine(db_url)
     return create_async_engine(
-        config.database_url,
+        db_url,
         pool_pre_ping=True,
         pool_size=config.database_pool_size,
         max_overflow=config.database_max_overflow,

@@ -26,7 +26,7 @@ class AgentConfig(BaseSettings):
     log_max_bytes: int = Field(default=5_000_000, ge=100_000)
     log_backup_count: int = Field(default=5, ge=1, le=20)
 
-    clothing_app_base_url: str = "http://127.0.0.1:8100"
+    clothing_app_base_url: str = "http://127.0.0.1:8000/catalog"
     clothing_app_timeout_seconds: float = Field(default=12.0, gt=0, le=120)
 
     # Groq exposes an OpenAI-compatible chat-completions API, so the agent only
@@ -36,7 +36,7 @@ class AgentConfig(BaseSettings):
     llm_model: str = "openai/gpt-oss-120b"
     llm_timeout_seconds: float = Field(default=45.0, gt=0, le=180)
     llm_temperature: float = Field(default=0.2, ge=0, le=2)
-    llm_max_tokens: int = Field(default=500, ge=80, le=4000)
+    llm_max_tokens: int = Field(default=1000, ge=80, le=4000)
     allow_local_fallback: bool = True
 
     recent_message_limit: int = Field(default=12, ge=2, le=30)

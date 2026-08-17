@@ -11,15 +11,13 @@ export default defineConfig({
       "/agent": {
         target: "http://localhost:8000",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/agent/, ""),
       },
       "/catalog": {
-        target: "http://localhost:8100",
+        target: "http://localhost:8000",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/catalog/, ""),
       },
       "/assets/products": {
-        target: "http://localhost:8100",
+        target: "http://localhost:8000",
         changeOrigin: true,
       },
     },
