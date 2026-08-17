@@ -188,6 +188,11 @@ class IntentExtractor:
             "      'کارڈ دکھاؤ' / 'میرا بیگ دکھاؤ' / 'سامان دکھاؤ' -> 'show_cart'.\n"
             "      'نکالو' / 'ہٹاؤ' / 'کارڈ سے ختم کرو' -> 'remove_cart'.\n"
             "      'تفصیلات' / 'مزید بتاؤ' / 'یہ کیسا ہے' -> 'get_details'.\n"
+            "17. Roman Urdu Transliteration Extraction (CRITICAL):\n"
+            "    - Roman Urdu (Urdu written in English script e.g. 'mujhe t-shirts dikhao', 'pehla wala add kardo', 'dusra dikhao', 'card me dalo') is NOT an allowed response language, but you MUST extract catalog filters and intent accurately from Roman Urdu inputs.\n"
+            "    - Extract 'mujhe t-shirts dikhao' -> intent 'search', search_overrides: {'categories': ['T-Shirts']}, search_query: 't-shirts'.\n"
+            "    - Extract 'pehla add kardo' / 'pehla option' -> intent 'add_to_cart', selected_product_index: 1.\n"
+            "    - Extract 'dusra dikhao' / 'dusra option' -> intent 'get_details', selected_product_index: 2.\n"
         )
 
         messages = [

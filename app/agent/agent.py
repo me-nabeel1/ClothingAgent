@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def _clean_reply_formatting(reply: str) -> str:
-    """Post-processing filter to strip forbidden currency symbols (₹, Rs, PKR, .00), eliminate Devanagari Hindi characters, and enforce whole integer prices with rupees/روپے labels."""
+    """Post-processing filter to strip forbidden currency symbols (₹, Rs, PKR, .00), eliminate Devanagari Hindi characters, Roman Urdu leaks, and enforce whole integer prices with rupees/روپے labels."""
     if not reply:
         return reply
 
@@ -38,6 +38,23 @@ def _clean_reply_formatting(reply: str) -> str:
 
     # 5. Remove duplicate currency labels (e.g. 1500 rupees rupees -> 1500 rupees)
     reply = re.sub(r'\b(rupees|روپے)\s+\1\b', r'\1', reply)
+
+    # 6. Replace common Roman Urdu lead phrases if LLM leaked them
+    roman_urdu_fixes = [
+        (r'\bAap ke cart me\b', 'In your cart', re.IGNORECASE),
+        (r'\bAap ka\b', 'Your', re.IGNORECASE),
+        (r'\bAap ki\b', 'Your', re.IGNORECASE),
+        (r'\bAap ke\b', 'Your', re.IGNORECASE),
+        (r'\bPehla option\b', 'Option 1', re.IGNORECASE),
+        (r'\bDusra option\b', 'Option 2', re.IGNORECASE),
+        (r'\bTeesra option\b', 'Option 3', re.IGNORECASE),
+        (r'\bChautha option\b', 'Option 4', re.IGNORECASE),
+        (r'\bShukriya\b', 'Thank you', re.IGNORECASE),
+        (r'\bBatao\b', 'Tell me', re.IGNORECASE),
+        (r'\bKardo\b', 'Do it', re.IGNORECASE),
+    ]
+    for pattern, replacement, flags in roman_urdu_fixes:
+        reply = re.sub(pattern, replacement, reply, flags=flags)
 
     return reply
 
@@ -266,6 +283,11 @@ class SingleAgent:
             f"Current State:\n{state.model_dump_json(exclude_defaults=True)}\n\n"
             "Action Results:\n"
             f"{results_str}\n\n"
+            "CRITICAL LANGUAGE MANDATE:\n"
+            "Supported response languages are ENGLISH and URDU SCRIPT (اردو - Nasta'liq) ONLY.\n"
+            "ROMAN URDU OUTPUT IS STRICTLY FORBIDDEN. NEVER write 'Aap ke cart me...', 'Pehla option...', 'Yeh shirt...'.\n"
+            "If the customer wrote in Urdu Script (e.g. 'مجھے پینٹس دکھاؤ'), reply strictly in Urdu Script (اردو).\n"
+            "If the customer wrote in English OR Roman Urdu (e.g. 'mujhe t-shirts dikhao', 'pehla add karo'), reply strictly in professional English.\n\n"
             "Synthesize a conversational reply for the customer based on these results."
         )
         
