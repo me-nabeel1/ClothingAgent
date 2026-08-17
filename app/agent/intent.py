@@ -165,6 +165,14 @@ class IntentExtractor:
             "    genuinely distinct requested actions into one step to save an entry.\n"
             "\n"
             "    CRITICAL: The `intent` field inside each `step` MUST be a full JSON object matching the StructuredIntent schema, NOT just a string.\n"
+            "15. STT Mis-transcription & Phonetic Equivalence for Cart / Bag (CRITICAL):\n"
+            "    - Speech-to-Text (STT) voice recognition often mis-transcribes 'cart' or 'bag' as phonetic lookalikes or literal translations in English and Urdu.\n"
+            "    - English STT mis-transcriptions for cart: 'card', 'cat', 'kart', 'kard', 'caat', 'court', 'cord', 'car', 'bag', 'basket', 'trolley'.\n"
+            "    - Urdu STT mis-transcriptions for cart: 'کارڈ' (card/kard), 'کاٹ', 'گاڑی' (literal gari/cart), 'بیگ' (bag), 'تھلا' (thaila/bag), 'جھولا' (jhola/bag), 'ٹوکری' (tokri/basket), 'سامان' (saman/items in cart), 'چیزیں' (cheezein/items in cart).\n"
+            "    - If the user says e.g. 'what is in my card', 'show my cat', 'add to card', 'میرے کارڈ میں کیا ہے', 'میرا کارڈ دکھاؤ', 'گاڑی میں کیا ہے', 'بیگ میں کیا ہے', 'تھلا دکھاؤ', you MUST recognize 'card'/'cat'/'گاڑی'/'کارڈ'/'بیگ'/'تھلا' as referring to the customer's SHOPPING CART / BAG!\n"
+            "    - Map 'show my card', 'what's in my card', 'میرے کارڈ میں کیا ہے', 'میرا کارڈ دکھاؤ', 'بیگ دکھاؤ' to intent 'show_cart'.\n"
+            "    - Map 'add to card', 'put in card', 'کارڈ میں ڈالو', 'گاڑی میں رکھو' to intent 'add_to_cart'.\n"
+            "    - Map 'remove from card', 'empty my card', 'کارڈ سے نکالو', 'کارڈ صاف کرو' to intent 'remove_cart' or 'clear_cart'.\n"
         )
 
         messages = [

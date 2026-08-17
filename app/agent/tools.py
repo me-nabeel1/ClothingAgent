@@ -388,7 +388,15 @@ class AgentTools:
             item_count=cart.total_quantity,
             subtotal=float(cart.subtotal)
         )
-        return "Item successfully added to cart."
+        cart_item_lines = [
+            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
+            for idx, item in enumerate(cart.items, 1)
+        ]
+        return (
+            f"Successfully added {payload.quantity}x {details.product.product_name} ({payload.color}, {payload.size}) to cart.\n\n"
+            f"Updated Cart Contents ({cart.total_quantity} items total, Subtotal: Rs {cart.subtotal}):\n"
+            + "\n".join(cart_item_lines)
+        )
 
     def _get_matching_variants(self, variants, color: Optional[str], size: Optional[str]):
         matching = []
@@ -441,7 +449,18 @@ class AgentTools:
             item_count=cart.total_quantity,
             subtotal=float(cart.subtotal)
         )
-        return "Item successfully removed from cart."
+        if not cart.items:
+            return "Item successfully removed. Cart is now empty."
+
+        item_lines = [
+            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
+            for idx, item in enumerate(cart.items, 1)
+        ]
+        return (
+            f"Item successfully removed from cart.\n\n"
+            f"Remaining Cart Contents ({cart.total_quantity} items total, Subtotal: Rs {cart.subtotal}):\n"
+            + "\n".join(item_lines)
+        )
 
 
     async def checkout(self, state: ConversationState, payload: PreviewCheckoutPayload) -> str:
@@ -527,7 +546,14 @@ class AgentTools:
             item_count=cart.total_quantity,
             subtotal=float(cart.subtotal)
         )
-        return f"Cart has {cart.total_quantity} items. Subtotal: Rs {cart.subtotal}."
+        if not cart.items:
+            return "Cart is currently empty."
+
+        item_lines = [
+            f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
+            for idx, item in enumerate(cart.items, 1)
+        ]
+        return f"Current Cart Contents ({cart.total_quantity} items total, Subtotal: Rs {cart.subtotal}):\n" + "\n".join(item_lines)
 
     async def update_cart_item(self, state: ConversationState, payload: UpdateCartItemPayload) -> str:
         state.clear_cards()
