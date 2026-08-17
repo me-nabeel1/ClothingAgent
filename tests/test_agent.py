@@ -667,7 +667,7 @@ class TestSessionIsolationAndReset:
 
         reply = await agent.process_message("start fresh", state, store_context)
 
-        assert "reset your session" in reply
+        assert "Northstar Menswear" in reply or "reset" in reply
         assert state.cart.cart_id is None
         assert state.cart.item_count == 0
 

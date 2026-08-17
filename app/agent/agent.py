@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def _clean_reply_formatting(reply: str) -> str:
-    """Post-processing filter to strip forbidden currency symbols (₹, Rs, PKR, .00) and enforce whole integer prices with rupees/روپے labels."""
+    """Post-processing filter to strip forbidden currency symbols (₹, Rs, PKR, .00), eliminate Devanagari Hindi characters, and enforce whole integer prices with rupees/روپے labels."""
     if not reply:
         return reply
 
@@ -26,14 +26,17 @@ def _clean_reply_formatting(reply: str) -> str:
     # 1. Clean decimal .00 endings (e.g. 1500.00 -> 1500)
     reply = re.sub(r'\b([0-9]+)\.00\b', r'\1', reply)
 
-    # 2. Replace Indian Rupee symbol (₹) or ₹ 1500 -> 1500 rupees
+    # 2. Strip Devanagari Hindi script characters if any slip through
+    reply = re.sub(r'[\u0900-\u097F]+', '', reply)
+
+    # 3. Replace Indian Rupee symbol (₹) or ₹ 1500 -> 1500 rupees
     reply = re.sub(r'₹\s*([0-9]+)', r'\1 rupees', reply)
     reply = re.sub(r'₹', '', reply)
 
-    # 3. Replace Rs. 1500 / Rs 1500 / PKR 1500 -> 1500 rupees
+    # 4. Replace Rs. 1500 / Rs 1500 / PKR 1500 -> 1500 rupees
     reply = re.sub(r'(?:Rs\.?|PKR)\s*([0-9]+)', r'\1 rupees', reply)
 
-    # 4. Remove duplicate currency labels (e.g. 1500 rupees rupees -> 1500 rupees)
+    # 5. Remove duplicate currency labels (e.g. 1500 rupees rupees -> 1500 rupees)
     reply = re.sub(r'\b(rupees|روپے)\s+\1\b', r'\1', reply)
 
     return reply
