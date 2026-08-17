@@ -16,6 +16,29 @@ from app.llm.prompts import SYSTEM_PROMPT_ROUTING, SYSTEM_PROMPT_VOICE
 logger = logging.getLogger(__name__)
 
 
+def _clean_reply_formatting(reply: str) -> str:
+    """Post-processing filter to strip forbidden currency symbols (₹, Rs, PKR, .00) and enforce whole integer prices with rupees/روپے labels."""
+    if not reply:
+        return reply
+
+    import re
+
+    # 1. Clean decimal .00 endings (e.g. 1500.00 -> 1500)
+    reply = re.sub(r'\b([0-9]+)\.00\b', r'\1', reply)
+
+    # 2. Replace Indian Rupee symbol (₹) or ₹ 1500 -> 1500 rupees
+    reply = re.sub(r'₹\s*([0-9]+)', r'\1 rupees', reply)
+    reply = re.sub(r'₹', '', reply)
+
+    # 3. Replace Rs. 1500 / Rs 1500 / PKR 1500 -> 1500 rupees
+    reply = re.sub(r'(?:Rs\.?|PKR)\s*([0-9]+)', r'\1 rupees', reply)
+
+    # 4. Remove duplicate currency labels (e.g. 1500 rupees rupees -> 1500 rupees)
+    reply = re.sub(r'\b(rupees|روپے)\s+\1\b', r'\1', reply)
+
+    return reply
+
+
 class SingleAgent:
     """The authoritative AI agent orchestrating conversation and business logic."""
 
@@ -97,9 +120,10 @@ class SingleAgent:
 
     def reply(self, reply_text: str, state: ConversationState) -> str:
         """Finalize assistant turn reply, synchronize product cards with reply prose, and record message history."""
-        state.sync_displayed_products_with_reply(reply_text)
-        state.message_history.append({"role": "assistant", "content": reply_text})
-        return reply_text
+        cleaned_text = _clean_reply_formatting(reply_text)
+        state.sync_displayed_products_with_reply(cleaned_text)
+        state.message_history.append({"role": "assistant", "content": cleaned_text})
+        return cleaned_text
 
     def _verify_postcondition(self, verify: str | None, state: ConversationState) -> bool:
         """Check if a postcondition is met in the state."""
