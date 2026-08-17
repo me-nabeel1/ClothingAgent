@@ -59,11 +59,20 @@ class SingleAgent:
         """Process one conversational turn using the IntentPlan pipeline."""
         logger.info("agent_processing_message", extra={"event": "process_message"})
 
-        # If user explicitly requests resetting session or starting fresh
+        # If user greets or explicitly requests resetting session or starting fresh
         msg_clean = user_message.strip().lower()
-        if msg_clean in ["reset", "reset session", "start fresh", "start over", "new chat", "clear session", "restart", "نئی سیشن", "نیا سیشن", "شروع سے", "دوبارہ شروع کرو"]:
+        greetings = {"hi", "hello", "hey", "ہیلو", "سلام", "ہیلو!", "سلام!", "good morning", "good evening", "good day", "as-salamu alaykum", "assalam o alaikum"}
+        is_greeting = msg_clean in greetings or any(msg_clean.startswith(g) for g in ["hi ", "hello ", "hey ", "ہیلو ", "سلام "])
+
+        if is_greeting or msg_clean in ["reset", "reset session", "start fresh", "start over", "new chat", "clear session", "restart", "نئی سیشن", "نیا سیشن", "شروع سے", "دوبارہ شروع کرو"]:
             state.reset()
-            return "Hello! I have reset your session and cleared all previous history. How can I assist you with your style today?"
+            state.current_intent = "greeting"
+            state.message_history.append({"role": "user", "content": user_message})
+            if any(ch in user_message for ch in ["اردو", "سلام", "ہیلو", "نیا", "شروع"]):
+                reply = f"ہیلو! {context.store_name} میں خوش آمدید۔ بطور آپ کے پرسنل سیلز کنسیئرج، آج آپ اپنی شخصیت کو نکھارنے کے لیے کون سا لباس یا اسٹائل پہننا چاہتے ہیں؟"
+            else:
+                reply = f"Hello! Welcome to {context.store_name}. As your personal AI Sales Concierge, what style or outfit are you looking to wear today to elevate your personality and boost your confidence?"
+            return self.reply(reply, state)
 
         # 1. Append user message to history
         state.message_history.append({"role": "user", "content": user_message})

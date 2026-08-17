@@ -492,8 +492,9 @@ class ConversationState(BaseModel):
 
     def sync_displayed_products_with_reply(self, reply: str) -> None:
         """Sync displayed_products and product_cards so cards are ONLY displayed during search/discovery turns for products described in reply text. Suppress cards during detail queries, follow-up turns, greetings, and variant requests."""
-        if not self.displayed_products or self.current_intent in ["general_chat", "greeting", "clear_preferences", None]:
+        if not self.displayed_products or self.current_intent in ["general_chat", "greeting", "clear_preferences", "reset_session", None]:
             self.product_cards = []
+            self.displayed_products = []
             return
 
         import re
@@ -560,3 +561,4 @@ class ConversationState(BaseModel):
                 self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
         else:
             self.product_cards = []
+            self.displayed_products = []
