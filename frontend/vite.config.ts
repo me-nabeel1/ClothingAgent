@@ -5,11 +5,27 @@ export default defineConfig({
   plugins: [react()],
   envDir: "..",
   server: {
-    host: "localhost",
+    host: "0.0.0.0",
     port: 5173,
+    proxy: {
+      "/agent": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/agent/, ""),
+      },
+      "/catalog": {
+        target: "http://localhost:8100",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/catalog/, ""),
+      },
+      "/assets/products": {
+        target: "http://localhost:8100",
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
-    host: "localhost",
+    host: "0.0.0.0",
     port: 4173,
   },
 });

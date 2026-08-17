@@ -33,7 +33,7 @@ class AgentConfig(BaseSettings):
     # needs these three provider settings.
     llm_api_base: str = "https://api.groq.com/openai/v1"
     llm_api_key: SecretStr | None = None
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "openai/gpt-oss-120b"
     llm_timeout_seconds: float = Field(default=45.0, gt=0, le=180)
     llm_temperature: float = Field(default=0.2, ge=0, le=2)
     llm_max_tokens: int = Field(default=500, ge=80, le=4000)

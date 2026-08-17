@@ -118,6 +118,31 @@ export interface DeliveryContext {
   delivery_notes: string | null;
 }
 
+export interface ProductCard {
+  product: ProductView;
+}
+
+export interface CartCard {
+  cart_id: string;
+  items: CartItem[];
+  item_count: number;
+  subtotal: number;
+}
+
+export interface CheckoutCard {
+  subtotal: number;
+  discount_total: number;
+  delivery_fee: number;
+  total_amount: number;
+  applied_offers: string[];
+}
+
+export interface OrderCard {
+  order_number: string;
+  total_amount: number;
+  estimated_delivery_days: string;
+}
+
 export interface ConversationState {
   session_id: string;
   conversation_stage: string;
@@ -137,6 +162,10 @@ export interface ConversationState {
   cart: CartContext;
   delivery: DeliveryContext;
   order_confirmed: boolean;
+  product_cards: ProductCard[];
+  cart_card: CartCard | null;
+  checkout_card: CheckoutCard | null;
+  order_card: OrderCard | null;
 }
 
 export interface ChatResponse {

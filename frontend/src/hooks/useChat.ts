@@ -87,58 +87,26 @@ export function useChat() {
       
       const response = await postChat(message, sessionId);
       
-      // Concurrently fetch rich product details for displayed items ONLY if the intent was to search
       let fullProducts: ProductView[] = [];
-      if (
-        response.state.current_intent === "search" &&
-        response.state.displayed_products && 
-        response.state.displayed_products.length > 0
-      ) {
-        try {
-          const detailResponses = await Promise.all(
-            response.state.displayed_products.map(p => getProductDetails(p.product_id))
-          );
-          fullProducts = detailResponses.map(r => r.product);
-        } catch (e) {
-          console.warn("Failed to fetch rich product details", e);
-        }
-      } else if (response.state.current_intent === "get_details" && response.state.selected_product_id) {
-        try {
-          const detailResponse = await getProductDetails(response.state.selected_product_id);
-          setActiveDetailsProduct(detailResponse.product);
-        } catch (e) {
-          console.warn("Failed to fetch product details", e);
-        }
+      if (response.state.product_cards && response.state.product_cards.length > 0) {
+        fullProducts = response.state.product_cards.map(c => c.product);
+      }
+      
+      if (response.state.current_intent === "get_details" && fullProducts.length === 1) {
+        setActiveDetailsProduct(fullProducts[0]);
       }
 
-      // Concurrently update cart if a cart_id is present in the state
-      if (response.state.cart?.cart_id) {
-        try {
-          const updatedCart = await getCart(response.state.cart.cart_id);
-          setCart(updatedCart);
-        } catch (e) {
-          console.warn("Failed to fetch cart state", e);
-        }
-      } else {
+      if (response.state.cart_card) {
+        setCart({
+          ...response.state.cart_card,
+          total_quantity: response.state.cart_card.item_count,
+        } as unknown as CartView);
+      } else if (!response.state.cart?.cart_id) {
         setCart(null);
       }
 
       let replyContent = response.reply;
-      let checkoutPreview = null;
-
-      // Extract checkout preview JSON block from the text response
-      const checkoutMarker = "Checkout Preview:\n";
-      const previewIndex = replyContent.indexOf(checkoutMarker);
-      if (previewIndex !== -1) {
-        const jsonString = replyContent.substring(previewIndex + checkoutMarker.length);
-        try {
-          checkoutPreview = JSON.parse(jsonString);
-          replyContent = replyContent.substring(0, previewIndex).trim();
-          if (!replyContent) replyContent = "Here is your checkout preview:";
-        } catch (e) {
-          console.warn("Failed to parse checkout preview JSON block");
-        }
-      }
+      let checkoutPreview = response.state.checkout_card || null;
 
       let deliveryContext = undefined;
       if (checkoutPreview) {

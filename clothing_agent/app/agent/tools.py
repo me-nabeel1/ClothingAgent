@@ -3,15 +3,23 @@
 import logging
 from typing import Optional, Any
 
-from app.agent.state import ConversationState, CartItemContext
+from app.agent.state import ConversationState, CartItemContext, ProductCard, CartCard, CheckoutCard, OrderCard
 from app.agent.schemas import (
     ExploreCategoryPayload,
     SearchProductsPayload,
     GetProductDetailsPayload,
     AddCartItemPayload,
     RemoveCartItemPayload,
-    PlaceOrderPayload
+    ShowCartPayload,
+    PreviewCheckoutPayload,
+    PlaceOrderPayload,
+    GetPromotionsPayload,
+    UpdateCartItemPayload,
+    ClearCartPayload,
+    CheckAvailabilityPayload,
+    GetOrderStatusPayload
 )
+from uuid import UUID
 from app.clients.clothing_app.client import ClothingAppClient
 from app.clients.clothing_app.schemas import (
     ProductSearchRequest,
@@ -38,6 +46,10 @@ def normalize_category_name(raw: str) -> str:
         return "T-Shirts"
     elif "polo" in raw_lower:
         return "Polo Shirts"
+    elif "active" in raw_lower:
+        return "Activewear"
+    elif "gym" in raw_lower:
+        return "Gym Wear"
     elif "shirt" in raw_lower:
         return "Shirts"
     elif "trouser" in raw_lower:
@@ -94,64 +106,58 @@ class AgentTools:
     def __init__(self, client: ClothingAppClient) -> None:
         self._client = client
 
-    async def explore_category(
-        self,
-        state: ConversationState,
-        payload: ExploreCategoryPayload
-    ) -> ProductSearchResponse:
-        """Explore single or multi-category requests, delegates to get_products."""
-        cats = parse_categories_from_input(payload.category_name)
-        search_payload = SearchProductsPayload(categories=cats)
-        return await self.get_products(state, search_payload, limit_override=3)
 
-    async def get_products(
+    async def search(
         self,
         state: ConversationState,
         payload: Optional[SearchProductsPayload] = None,
         limit_override: Optional[int] = None
-    ) -> ProductSearchResponse:
-        """Search products using explicit parameters from the LLM tool call."""
+    ) -> str:
+        state.clear_cards()
         if payload is None:
             payload = SearchProductsPayload()
         
-        if payload.clear_previous_preferences:
+        if getattr(payload, "clear_previous_preferences", False):
             state.clear_search_preferences()
             
-        # Parse and set multi-category preferences if provided or inferred
-        if payload.categories is not None:
-            parsed = parse_categories_from_input(payload.categories, payload.search_query)
+        categories_val = getattr(payload, "categories", None)
+        query_val = getattr(payload, "search_query", None)
+        category_name_val = getattr(payload, "category_name", None)
+        if category_name_val and not categories_val:
+            categories_val = [category_name_val]
+
+        if categories_val is not None:
+            parsed = parse_categories_from_input(categories_val, query_val)
             if parsed:
                 state.categories = parsed
-        elif not state.categories and payload.search_query:
-            parsed = parse_categories_from_input(None, payload.search_query)
+        elif not state.categories and query_val:
+            parsed = parse_categories_from_input(None, query_val)
             if parsed:
                 state.categories = parsed
 
-        if payload.product_types is not None: state.product_types = payload.product_types
-        if payload.occasions is not None: state.occasions = payload.occasions
-        if payload.colors is not None: state.preferred_colors = payload.colors
-        if payload.excluded_colors is not None: state.excluded_colors = payload.excluded_colors
-        if payload.materials is not None: state.materials = payload.materials
-        if payload.fits is not None: state.fits = payload.fits
-        if payload.seasons is not None: state.seasons = payload.seasons
-        if payload.branch is not None: state.branch_preference = payload.branch
-        if payload.sizes is not None:
+        if getattr(payload, "product_types", None) is not None: state.product_types = payload.product_types
+        if getattr(payload, "occasions", None) is not None: state.occasions = payload.occasions
+        if getattr(payload, "colors", None) is not None: state.preferred_colors = payload.colors
+        if getattr(payload, "excluded_colors", None) is not None: state.excluded_colors = payload.excluded_colors
+        if getattr(payload, "materials", None) is not None: state.materials = payload.materials
+        if getattr(payload, "fits", None) is not None: state.fits = payload.fits
+        if getattr(payload, "seasons", None) is not None: state.seasons = payload.seasons
+        if getattr(payload, "branch", None) is not None: state.branch_preference = payload.branch
+        if getattr(payload, "sizes", None) is not None:
             for k, v in payload.sizes.items():
                 state.size_preferences[k] = v
-        if payload.budget is not None:
+        if getattr(payload, "budget", None) is not None:
             if payload.budget.minimum is not None: state.budget.minimum = payload.budget.minimum
             if payload.budget.maximum is not None: state.budget.maximum = payload.budget.maximum
             
         budget_min = state.budget.minimum
         budget_max = state.budget.maximum
         
-        # If user asks for cheaper but provides no maximum, infer from currently displayed products
         if budget_max is None and state.displayed_products:
             min_displayed_price = min((p.price for p in state.displayed_products if p.price > 0), default=None)
             if min_displayed_price is not None:
                 budget_max = float(min_displayed_price) - 0.01
 
-        # Determine limit based on categories
         if limit_override is not None:
             limit = limit_override
         else:
@@ -160,7 +166,7 @@ class AgentTools:
             limit = min(limit, 20)
 
         request = ProductSearchRequest(
-            query_text=payload.search_query,
+            query_text=getattr(payload, "search_query", None),
             categories=state.categories,
             product_types=state.product_types,
             occasions=state.occasions,
@@ -175,8 +181,8 @@ class AgentTools:
             maximum_price=budget_max,
             branch_code=state.branch_preference,
             in_stock_only=True,
-            limit=limit * 3,  # Fetch extra to survive strict agent-side drops
-            article_code=payload.specific_article,
+            limit=min(limit, 20),
+            article_code=getattr(payload, "specific_article", None),
         )
 
         logger.info(
@@ -186,14 +192,15 @@ class AgentTools:
 
         response = await self._client.search_products(request)
         
-        # Enforce strict category matching if categories were requested
         if state.categories and response.products:
             def _matches_category(p, requested_cats):
-                cat_name = (p.category or "").lower()
-                prod_name = (p.product_name or "").lower()
-                prod_type = (p.product_type or "").lower()
+                cat_name = (p.category or "").lower().replace(" ", "").replace("-", "")
+                prod_name = (p.product_name or "").lower().replace(" ", "").replace("-", "")
+                prod_type = (p.product_type or "").lower().replace(" ", "").replace("-", "")
                 for req in requested_cats:
-                    req_stem = req.lower().rstrip("s")
+                    req_stem = req.lower().replace(" ", "").replace("-", "").rstrip("s")
+                    if req_stem == "shirt" and ("tshirt" in prod_type or "tshirt" in cat_name or "tee" in prod_type or "tee" in cat_name or "tee" in prod_name):
+                        continue
                     if req_stem in cat_name or req_stem in prod_name or req_stem in prod_type:
                         return True
                     if cat_name in req_stem or prod_type in req_stem:
@@ -201,34 +208,94 @@ class AgentTools:
                 return False
 
             matched = [p for p in response.products if _matches_category(p, state.categories)]
-            response.products = matched[:limit] # Apply actual limit after strict filter
+            response.products = matched[:limit]
             response.result_count = len(response.products)
         else:
             response.products = response.products[:limit]
             response.result_count = len(response.products)
 
-        # Keep track of what we displayed
         state.record_displayed_products(response.products)
-        return response
+        state.product_cards = [ProductCard(product=p) for p in response.products]
+        
+        if not response.products:
+            return "No products found matching the criteria."
+        lines = [f"Found {len(response.products)} products:"]
+        for idx, p in enumerate(response.products, 1):
+            lines.append(f"Option {idx}: {p.product_name} | Price: Rs {p.final_price} | Type: {p.product_type} | Category: {p.category}")
+        return "\n".join(lines)
 
-    async def get_product_details(self, payload: GetProductDetailsPayload, state: ConversationState) -> Optional[ProductDetails]:
-        """Retrieve complete product details for an exact product."""
-        product_id = payload.product_id
-        if not product_id and payload.selected_product_index is not None:
-            index = payload.selected_product_index
-            if index < 1 or index > len(state.displayed_products):
-                logger.warning("agent_tool_invalid_product_index", extra={"event": "invalid_product_index", "index": index})
-                return None
-            product_id = state.displayed_products[index - 1].product_id
-            
-        if not product_id:
+
+    async def get_details(self, arg1: Any, arg2: Any = None) -> Any:
+        if isinstance(arg1, ConversationState):
+            state, payload = arg1, arg2
+        else:
+            payload, state = arg1, arg2
+
+        if not state:
             return None
-            
-        logger.info(
-            "agent_tool_get_product_details",
-            extra={"event": "agent_tool_get_product_details", "product_id": product_id},
-        )
-        return await self._client.get_product(product_id)
+
+        product_id = getattr(payload, "product_id", None) if payload else None
+        selected_index = getattr(payload, "selected_product_index", None) if payload else None
+
+        target_product_ids = []
+        if product_id:
+            target_product_ids.append(product_id)
+        elif selected_index is not None and state.displayed_products:
+            if 1 <= selected_index <= len(state.displayed_products):
+                target_product_ids.append(state.displayed_products[selected_index - 1].product_id)
+
+        if not target_product_ids and state.displayed_products:
+            target_product_ids = [dp.product_id for dp in state.displayed_products]
+
+        if not target_product_ids:
+            return None
+
+        state.clear_cards()
+        detailed_products = []
+        lines = []
+
+        for pid in target_product_ids:
+            logger.info(
+                "agent_tool_get_product_details",
+                extra={"event": "agent_tool_get_product_details", "product_id": pid},
+            )
+            details = await self._client.get_product(pid)
+            if details and details.product:
+                p = details.product
+                detailed_products.append(p)
+                line_entry = [f"Details for {p.product_name}:", f"Price: Rs {p.final_price}", f"Description: {p.description or 'N/A'}"]
+                if p.variants:
+                    colors = sorted(list(set(v.color for v in p.variants if v.is_available)))
+                    sizes = sorted(list(set(v.size for v in p.variants if v.is_available)))
+                    line_entry.append(f"Available Colors: {', '.join(colors) if colors else 'None'}")
+                    line_entry.append(f"Available Sizes: {', '.join(sizes) if sizes else 'None'}")
+                lines.append("\n".join(line_entry))
+
+        if detailed_products:
+            state.record_displayed_products(detailed_products)
+            state.product_cards = [ProductCard(product=p) for p in detailed_products]
+            return "\n\n".join(lines)
+        return None
+
+    # Method aliases for backward compatibility and test expectations
+    async def get_products(self, state: ConversationState, payload: Optional[SearchProductsPayload] = None, limit_override: Optional[int] = None) -> Any:
+        return await self.search(state, payload, limit_override)
+
+    async def explore_category(self, state: ConversationState, payload: Any = None) -> Any:
+        return await self.search(state, payload)
+
+    async def get_product_details(self, arg1: Any, arg2: Any = None) -> Any:
+        return await self.get_details(arg1, arg2)
+
+    async def add_cart_item(self, state: ConversationState, payload: AddCartItemPayload) -> Any:
+        return await self.add_to_cart(state, payload)
+
+    async def remove_cart_item(self, state: ConversationState, payload: RemoveCartItemPayload) -> Any:
+        return await self.remove_cart(state, payload)
+
+    async def preview_checkout(self, state: ConversationState, payload: Optional[PreviewCheckoutPayload] = None) -> Any:
+        return await self.checkout(state, payload)
+
 
     async def _ensure_cart(self, state: ConversationState) -> None:
         """Create a cart for the session if it doesn't exist."""
@@ -239,7 +306,9 @@ class AgentTools:
             state.cart.subtotal = float(cart.subtotal)
             state.cart.items = []
 
-    async def add_cart_item(self, state: ConversationState, payload: AddCartItemPayload) -> CartView | None:
+
+    async def add_to_cart(self, state: ConversationState, payload: AddCartItemPayload) -> str:
+        state.clear_cards()
         await self._ensure_cart(state)
         
         product_id = payload.product_id
@@ -258,35 +327,34 @@ class AgentTools:
             state.selected_product_id = product_id
             
         if not product_id:
-            return None
+            return "Cannot determine which product to add."
             
         details = await self._client.get_product(product_id)
         if not details or not details.product or not details.product.variants:
-            return None
+            return "Product variants not available."
 
-        # Determine available colors and sizes among in-stock variants
         in_stock_variants = [v for v in details.product.variants if v.is_available]
         if not in_stock_variants:
             in_stock_variants = details.product.variants
 
-        available_colors = set(v.color for v in in_stock_variants)
-        available_sizes = set(v.size for v in in_stock_variants)
-
-        # Always require BOTH color and size to be explicitly specified in payload
         if not payload.color or not payload.size:
             logger.info("add_cart_item_missing_color_or_size", extra={"color": payload.color, "size": payload.size, "product_id": product_id})
-            return None
+            colors = sorted(list(set(v.color for v in details.product.variants if v.is_available)))
+            sizes = sorted(list(set(v.size for v in details.product.variants if v.is_available)))
+            if state:
+                state.record_displayed_products([details.product])
+                state.product_cards = [ProductCard(product=details.product)]
+            return (
+                f"Cannot add {details.product.product_name} to cart directly because variant selection (color and size) is required.\n"
+                f"Available Colors: {', '.join(colors) if colors else 'None'}\n"
+                f"Available Sizes: {', '.join(sizes) if sizes else 'None'}\n"
+                "INSTRUCTION: Politely and professionally ask the user which color and size they prefer from the available options before adding to cart."
+            )
 
-        matching_variants = []
-        for v in details.product.variants:
-            if payload.color and v.color.lower() != payload.color.lower():
-                continue
-            if payload.size and v.size.lower() != payload.size.lower():
-                continue
-            matching_variants.append(v)
+        matching_variants = self._get_matching_variants(details.product.variants, payload.color, payload.size)
             
         if not matching_variants:
-            return None
+            return f"Variant not found for color {payload.color} and size {payload.size}."
             
         variant = matching_variants[0]
         variant_id = variant.variant_id
@@ -298,7 +366,7 @@ class AgentTools:
                 break
                 
         if not branch_id:
-            return None # Out of stock
+            return "Selected variant is currently out of stock."
 
         req = AddCartItemRequest(variant_id=variant_id, branch_id=branch_id, quantity=payload.quantity)
         cart = await self._client.add_cart_item(state.cart.cart_id, req)
@@ -314,26 +382,46 @@ class AgentTools:
                 price=float(i.unit_price)
             ) for i in cart.items
         ]
-        return cart
+        state.cart_card = CartCard(
+            cart_id=str(cart.cart_id),
+            items=cart.items,
+            item_count=cart.total_quantity,
+            subtotal=float(cart.subtotal)
+        )
+        return "Item successfully added to cart."
 
-    async def remove_cart_item(self, state: ConversationState, payload: RemoveCartItemPayload) -> CartView | None:
-        if not state.cart.cart_id or not state.cart.items:
+    def _get_matching_variants(self, variants, color: Optional[str], size: Optional[str]):
+        matching = []
+        for v in variants:
+            if color and v.color.lower() != color.lower():
+                continue
+            if size and v.size.lower() != size.lower():
+                continue
+            matching.append(v)
+        return matching
+
+    def _resolve_cart_item_id(self, state: ConversationState, item_index: Optional[int], product_name: Optional[str]) -> Optional[str]:
+        if not state.cart.items:
             return None
-            
-        target_item_id = None
-        if payload.item_index is not None and 1 <= payload.item_index <= len(state.cart.items):
-            target_item_id = state.cart.items[payload.item_index - 1].item_id
-        elif payload.product_name:
-            # Simple substring match
+        if item_index is not None and 1 <= item_index <= len(state.cart.items):
+            return state.cart.items[item_index - 1].item_id
+        if product_name:
             for item in state.cart.items:
-                if payload.product_name.lower() in item.product_name.lower():
-                    target_item_id = item.item_id
-                    break
+                if product_name.lower() in item.product_name.lower():
+                    return item.item_id
+        return None
+
+
+    async def remove_cart(self, state: ConversationState, payload: RemoveCartItemPayload) -> str:
+        state.clear_cards()
+        if not state.cart.cart_id or not state.cart.items:
+            return "Cart is already empty."
+            
+        target_item_id = self._resolve_cart_item_id(state, payload.item_index, payload.product_name)
                     
         if not target_item_id:
-            return None
+            return "Could not identify which item to remove."
             
-        from uuid import UUID
         cart = await self._client.remove_cart_item(state.cart.cart_id, UUID(target_item_id))
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
@@ -347,26 +435,55 @@ class AgentTools:
                 price=float(i.unit_price)
             ) for i in cart.items
         ]
-        return cart
+        state.cart_card = CartCard(
+            cart_id=str(cart.cart_id),
+            items=cart.items,
+            item_count=cart.total_quantity,
+            subtotal=float(cart.subtotal)
+        )
+        return "Item successfully removed from cart."
 
-    async def preview_checkout(self, state: ConversationState, offer_code: Optional[str] = None) -> StoreOrderPreview | None:
+
+    async def checkout(self, state: ConversationState, payload: PreviewCheckoutPayload) -> str:
+        state.clear_cards()
         if not state.cart.cart_id:
-            return None
-        req = PreviewCartRequest(offer_code=offer_code)
-        return await self._client.preview_cart(state.cart.cart_id, req)
+            return "Cart is empty."
+        req = PreviewCartRequest()
+        preview = await self._client.preview_cart(state.cart.cart_id, req)
+        
+        applied_offers = []
+        for o in preview.applied_offers:
+            applied_offers.append(o.offer_name)
+            
+        state.checkout_card = CheckoutCard(
+            subtotal=float(preview.subtotal),
+            discount_total=float(preview.discount_total),
+            delivery_fee=float(preview.delivery_fee),
+            total_amount=float(preview.total_amount),
+            applied_offers=applied_offers
+        )
+        
+        lines = ["Checkout Preview:"]
+        lines.append(f"Subtotal: Rs {preview.subtotal}")
+        if preview.discount_total > 0:
+            lines.append(f"Discount: Rs {preview.discount_total}")
+        lines.append(f"Delivery: Rs {preview.delivery_fee}")
+        lines.append(f"Total: Rs {preview.total_amount}")
+        return "\n".join(lines)
+
 
     async def place_order(
         self, 
         state: ConversationState, 
-        payload: PlaceOrderPayload,
-        offer_code: Optional[str] = None
-    ) -> OrderView | None:
+        payload: PlaceOrderPayload
+    ) -> str:
+        state.clear_cards()
         if not state.cart.cart_id:
-            return None
+            return "Cart is empty."
             
         req = PlaceOrderRequest(
             cart_id=state.cart.cart_id, 
-            offer_code=offer_code,
+            offer_code=None,
             customer_name=payload.customer_name,
             phone=payload.phone,
             delivery_address=payload.delivery_address,
@@ -374,15 +491,152 @@ class AgentTools:
             delivery_notes=payload.delivery_notes
         )
         order = await self._client.place_order(req)
+        state.order_card = OrderCard(
+            order_number=order.order_number,
+            total_amount=float(order.total_amount),
+            estimated_delivery_days="5-7"
+        )
         # Clear cart state after successful order
         state.cart.cart_id = None
         state.cart.item_count = 0
         state.cart.subtotal = 0.0
         state.cart.items = []
-        return order
+        return f"Order placed successfully! Order Number: {order.order_number}. Total: Rs {order.total_amount}."
 
-    async def get_promotions(self) -> str:
+
+    async def show_cart(self, state: ConversationState, payload: ShowCartPayload) -> str:
+        state.clear_cards()
+        if not state.cart.cart_id:
+            return "Cart is currently empty."
+        cart = await self._client.get_cart(state.cart.cart_id)
+        state.cart.item_count = cart.total_quantity
+        state.cart.subtotal = float(cart.subtotal)
+        state.cart.items = [
+            CartItemContext(
+                item_id=str(i.item_id),
+                product_name=i.product_name,
+                color=i.color,
+                size=i.size,
+                quantity=i.quantity,
+                price=float(i.unit_price)
+            ) for i in cart.items
+        ]
+        state.cart_card = CartCard(
+            cart_id=str(cart.cart_id),
+            items=cart.items,
+            item_count=cart.total_quantity,
+            subtotal=float(cart.subtotal)
+        )
+        return f"Cart has {cart.total_quantity} items. Subtotal: Rs {cart.subtotal}."
+
+    async def update_cart_item(self, state: ConversationState, payload: UpdateCartItemPayload) -> str:
+        state.clear_cards()
+        if not state.cart.cart_id or not state.cart.items:
+            return "Cart is empty."
+        
+        target_item_id = self._resolve_cart_item_id(state, payload.item_index, payload.product_name)
+        if not target_item_id:
+            return "Could not find that item in the cart."
+            
+        from app.clients.clothing_app.schemas import UpdateCartItemRequest
+        req = UpdateCartItemRequest(quantity=payload.new_quantity)
+        cart = await self._client.update_cart_item(state.cart.cart_id, UUID(target_item_id), req)
+        
+        state.cart.item_count = cart.total_quantity
+        state.cart.subtotal = float(cart.subtotal)
+        state.cart.items = [
+            CartItemContext(
+                item_id=str(i.item_id),
+                product_name=i.product_name,
+                color=i.color,
+                size=i.size,
+                quantity=i.quantity,
+                price=float(i.unit_price)
+            ) for i in cart.items
+        ]
+        state.cart_card = CartCard(
+            cart_id=str(cart.cart_id),
+            items=cart.items,
+            item_count=cart.total_quantity,
+            subtotal=float(cart.subtotal)
+        )
+        return f"Updated item quantity to {payload.new_quantity}."
+
+    async def clear_cart(self, state: ConversationState, payload: ClearCartPayload) -> str:
+        state.clear_cards()
+        if not state.cart.cart_id:
+            return "Cart is already empty."
+        
+        cart = await self._client.clear_cart(state.cart.cart_id)
+        
+        state.cart.item_count = cart.total_quantity
+        state.cart.subtotal = float(cart.subtotal)
+        state.cart.items = []
+        state.cart_card = CartCard(
+            cart_id=str(cart.cart_id),
+            items=[],
+            item_count=cart.total_quantity,
+            subtotal=float(cart.subtotal)
+        )
+        return "Cart cleared."
+        
+    async def check_availability(self, state: ConversationState, payload: CheckAvailabilityPayload) -> str:
+        state.clear_cards()
+        details = await self._client.get_product(payload.product_id)
+        if not details or not details.product or not details.product.variants:
+            return "Product not found or has no variants."
+            
+        matching = self._get_matching_variants(details.product.variants, payload.color, payload.size)
+            
+        if not matching:
+            return "No matching variants found for that color/size."
+            
+        variant_id = matching[0].variant_id
+        
+        branch_id = None
+        if payload.branch:
+            branches = await self._client.list_branches()
+            for b in branches:
+                if payload.branch.lower() in b.name.lower():
+                    branch_id = b.branch_id
+                    break
+        
+        if not branch_id and state.branch_preference:
+            branches = await self._client.list_branches()
+            for b in branches:
+                if state.branch_preference.lower() in b.name.lower():
+                    branch_id = b.branch_id
+                    break
+                    
+        if not branch_id:
+            branches = await self._client.list_branches()
+            if branches:
+                branch_id = branches[0].branch_id
+                
+        if not branch_id:
+            return "Could not determine a store branch to check."
+            
+        avail = await self._client.get_availability(variant_id, branch_id)
+        if avail and avail.is_available:
+            return f"Yes, that's in stock. {avail.available_quantity} available."
+        return "Sorry, that item is currently out of stock at this branch."
+        
+    async def get_order_status(self, state: ConversationState, payload: GetOrderStatusPayload) -> str:
+        state.clear_cards()
+        order = await self._client.get_order(payload.order_id)
+        if not order:
+            return "Order not found."
+            
+        state.order_card = OrderCard(
+            order_number=order.order_number,
+            total_amount=float(order.total_amount),
+            estimated_delivery_days="5-7"
+        )
+        return f"Order {order.order_number} is {order.status}."
+
+    async def get_promotions(self, state: ConversationState, payload: GetPromotionsPayload) -> str:
         """Fetch active promotions and format them as a string."""
+        state.clear_cards()
         promos = await self._client.get_promotions()
         if not promos:
             return "No exclusive offers or promotions are currently running."

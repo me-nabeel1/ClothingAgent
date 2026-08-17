@@ -116,11 +116,11 @@ Content-Type: application/json
 
 {
   "message": "Show me comfortable black trousers in size 34 under PKR 5000.",
-  "conversation_id": "optional-uuid-here"
+  "session_id": "your-uuid-here"
 }
 ```
 
-If `conversation_id` is omitted, a new conversation is automatically created.
+The `session_id` is required to maintain conversation state.
 
 ## Supported behavior
 
@@ -148,5 +148,5 @@ $env:PYTHONPATH = "$PWD\clothing_agent"
 pytest clothing_agent/tests -q
 ```
 
-See [docs/module-map.md](docs/module-map.md) for module inputs, outputs, and
-ownership, and [docs/health-guide.md](docs/health-guide.md) for diagnostics.
+See [tests](clothing_agent/tests) for module inputs, outputs, and
+ownership.

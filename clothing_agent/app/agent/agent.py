@@ -2,25 +2,16 @@
 
 import logging
 import json
-from typing import Optional
+from typing import Optional, Any
 
 from app.agent.state import ConversationState
-from app.agent.tools import AgentTools
-from app.agent.schemas import (
-    tools as AGENT_TOOLS,
-    ExploreCategoryPayload,
-    SearchProductsPayload,
-    GetProductDetailsPayload,
-    AddCartItemPayload,
-    RemoveCartItemPayload,
-    ShowCartPayload,
-    PreviewCheckoutPayload,
-    PlaceOrderPayload,
-    GetPromotionsPayload
-)
+from app.agent.schemas import tools as AGENT_TOOLS
+from app.agent.registry import TOOL_REGISTRY
+from app.agent.checker import ParameterRequirementsChecker
+from app.agent.intent import IntentExtractor, StructuredIntent, IntentPlan
 from app.clients.clothing_app.schemas import StoreContext
 from app.llm.client import LLMClient, LLMMessage
-from app.llm.prompts import SYSTEM_PROMPT
+from app.llm.prompts import SYSTEM_PROMPT_ROUTING, SYSTEM_PROMPT_VOICE
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +19,13 @@ logger = logging.getLogger(__name__)
 class SingleAgent:
     """The authoritative AI agent orchestrating conversation and business logic."""
 
-    def __init__(self, llm: LLMClient, tools: AgentTools) -> None:
+    def __init__(self, llm: LLMClient, tools: Any = None, intent_extractor: Optional[IntentExtractor] = None) -> None:
         self._llm = llm
         self._tools = tools
+        self._intent_extractor = intent_extractor
+        if tools is not None:
+            from app.agent.registry import register_all_tools
+            register_all_tools(tools)
 
     async def process_message(
         self,
@@ -38,96 +33,273 @@ class SingleAgent:
         state: ConversationState,
         context: StoreContext,
     ) -> str:
-        """Process one conversational turn using Tool Calling."""
+        """Process one conversational turn using the IntentPlan pipeline."""
         logger.info("agent_processing_message", extra={"event": "process_message"})
 
         # Reset turn intent for the new turn
         state.current_intent = "general"
 
-        # Detect general store inquiry and clear past search preferences & displayed products
-        msg_lower = user_message.lower().strip()
-        general_keywords = (
-            "what products", "what product", "what do you offer", "what do you sell",
-            "what categories", "show categories", "what items do you have", "what can i buy",
-            "tell me what you have", "list products", "list categories", "what you have"
-        )
-        is_general_store_query = any(q in msg_lower for q in general_keywords) and not any(
-            c in msg_lower for c in ("shirt", "pant", "trouser", "hoodie", "jacket", "kurta", "jean")
-        )
-        if is_general_store_query:
-            state.clear_search_preferences()
-            state.displayed_products.clear()
-
         # 1. Append user message to history
         state.message_history.append({"role": "user", "content": user_message})
 
-        # 2. Build system context
+        # 2. Extract multi-intent plan
+        try:
+            plan = await self._intent_extractor.extract(user_message, state, context)
+            logger.info(
+                "plan_generated",
+                extra={
+                    "event": "plan_generated",
+                    "step_count": len(plan.steps),
+                    "intents": [s.intent.intent for s in plan.steps],
+                },
+            )
+        except Exception as exc:
+            logger.error("plan_extraction_failed", extra={"error": str(exc)})
+            try:
+                return await self._fallback_llm_tool_turn(state, context)
+            except Exception as fallback_exc:
+                logger.error("fallback_llm_tool_turn_failed", extra={"error": str(fallback_exc)})
+                return await self._local_rule_fallback(user_message, state, context)
+
+        # 3. Execute plan sequentially
+        step_results = []
+        for step in plan.steps:
+            # Check dependency verification
+            if step.depends_on:
+                verify_flag = next((s.verify for s in plan.steps if s.step_id == step.depends_on), None)
+                if not self._verify_postcondition(verify_flag, state):
+                    step_results.append(f"Step {step.step_id} ({step.intent.intent}) skipped because dependency {step.depends_on} failed verification.")
+                    continue
+
+            # Update context from intent
+            if step.intent.clear_previous_preferences:
+                state.clear_search_preferences()
+                state.displayed_products.clear()
+
+            # Execute tool for intent
+            result = await self._execute_intent(step.intent, state, context)
+            step_results.append(f"Step {step.step_id} ({step.intent.intent}) result:\n{result}")
+
+            # Filter cards to selected indices if user shortlisted/selected specific products
+            selected_indices = getattr(step.intent, "selected_product_indices", [])
+            if not selected_indices and getattr(step.intent, "selected_product_index", None) is not None:
+                selected_indices = [step.intent.selected_product_index]
+            if selected_indices and state.displayed_products and step.intent.intent not in ["search", "remove_cart", "clear_cart"]:
+                state.filter_displayed_cards(selected_indices)
+
+        # 4. Synthesize final reply
+        reply_text = await self._synthesize_reply(step_results, state, context)
+        return self.reply(reply_text, state)
+
+    def reply(self, reply_text: str, state: ConversationState) -> str:
+        """Finalize assistant turn reply, synchronize product cards with reply prose, and record message history."""
+        state.sync_displayed_products_with_reply(reply_text)
+        state.message_history.append({"role": "assistant", "content": reply_text})
+        return reply_text
+
+    def _verify_postcondition(self, verify: str | None, state: ConversationState) -> bool:
+        """Check if a postcondition is met in the state."""
+        if not verify:
+            return True
+
+        if verify == "cart_is_empty":
+            return state.cart_card is None or state.cart_card.item_count == 0
+
+        logger.warning(
+            "unrecognized_postcondition_verify",
+            extra={"event": "unrecognized_postcondition_verify", "verify": verify},
+        )
+        return True
+
+
+    async def _execute_intent(self, intent: StructuredIntent, state: ConversationState, context: StoreContext) -> str:
+        """Map StructuredIntent to tool calls via TOOL_REGISTRY and execute them."""
+
+        # Non-tool intents handled directly
+        if intent.intent == "general_chat":
+            return "General chat intent detected. No tool executed."
+
+        if intent.intent == "clear_preferences":
+            state.clear_search_preferences()
+            state.displayed_products.clear()
+            return "Preferences cleared."
+
+        # Route "remove_cart" with no specific item to "clear_cart"
+        tool_name = intent.intent
+        if tool_name == "remove_cart" and intent.selected_product_index is None:
+            # No specific item → user wants to empty the entire cart
+            tool_name = "clear_cart"
+
+        spec = TOOL_REGISTRY.get(tool_name)
+        if not spec:
+            return f"No tool mapping for intent {intent.intent}"
+
+        args = self._args_from_intent(intent, state)
+
+        try:
+            validation_error = await ParameterRequirementsChecker.check(spec, args, state)
+            if validation_error:
+                return validation_error
+
+            payload = spec.payload_model(**args)
+            result = await spec.handler(state, payload)
+            # Ensure result is a string for synthesis
+            return result if isinstance(result, str) else str(result)
+
+        except Exception as exc:
+            logger.error(f"Error executing {tool_name}: {exc}")
+            return f"Error executing {tool_name}: {str(exc)}"
+
+    def _args_from_intent(self, intent: StructuredIntent, state: ConversationState) -> dict:
+        """Extract arguments from the intent for tool execution."""
+        args = {}
+        filters = intent.search_overrides or intent.filters
+        if filters:
+            if filters.categories:
+                args["categories"] = filters.categories
+                args["category_name"] = filters.categories[0]
+            if filters.product_types: args["product_types"] = filters.product_types
+            if filters.occasions: args["occasions"] = filters.occasions
+            if filters.colors:
+                args["colors"] = filters.colors
+                args["color"] = filters.colors[0]
+            if filters.excluded_colors: args["excluded_colors"] = filters.excluded_colors
+            if filters.sizes:
+                args["size_mapping"] = filters.sizes
+                args["size"] = next(iter(filters.sizes.values()))
+            if filters.materials: args["materials"] = filters.materials
+            if filters.fits: args["fits"] = filters.fits
+            if filters.budget:
+                if getattr(filters.budget, 'minimum', None) is not None: args["minimum_price"] = filters.budget.minimum
+                if getattr(filters.budget, 'maximum', None) is not None: args["maximum_price"] = filters.budget.maximum
+            if filters.branch: args["branch_code"] = filters.branch
+            if filters.specific_article: args["article_code"] = filters.specific_article
+            
+        if intent.search_query:
+            args["query_text"] = intent.search_query
+            
+        if intent.selected_product_index is not None:
+            args["selected_product_index"] = intent.selected_product_index
+            if 1 <= intent.selected_product_index <= len(state.displayed_products):
+                args["product_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
+                args["item_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
+                
+        if intent.quantity:
+            args["quantity"] = intent.quantity
+            
+        if intent.delivery_info:
+            if intent.delivery_info.customer_name: args["customer_name"] = intent.delivery_info.customer_name
+            if intent.delivery_info.phone: args["phone"] = intent.delivery_info.phone
+            if intent.delivery_info.delivery_address: args["delivery_address"] = intent.delivery_info.delivery_address
+            if intent.delivery_info.city: args["city"] = intent.delivery_info.city
+            if intent.delivery_info.delivery_notes: args["delivery_notes"] = intent.delivery_info.delivery_notes
+            
+        return args
+
+    async def _synthesize_reply(self, step_results: list[str], state: ConversationState, context: StoreContext) -> str:
+        """Synthesize a natural language reply from the step results."""
+        results_str = "\n\n---\n\n".join(step_results)
+        
+        store_ctx_str = (
+            f"Brand/Store Context:\n"
+            f"- Brand Name: {context.store_name}\n"
+            f"- Available Categories: {context.categories}\n"
+            f"- Available Product Types: {context.product_types}\n"
+            f"- Available Occasions: {context.occasions}\n"
+            f"- Available Colors: {context.colors}\n"
+            f"- Available Sizes: {context.sizes}\n"
+        )
+
         system_content = (
-            f"{SYSTEM_PROMPT}\n\n"
+            f"{SYSTEM_PROMPT_VOICE}\n\n"
+            f"{store_ctx_str}\n\n"
             f"Current State:\n{state.model_dump_json(exclude_defaults=True)}\n\n"
-            "Available Vocabulary (Must match EXACTLY if used for filters):\n"
-            f"Categories: {context.categories}\n"
-            f"Product Types: {context.product_types}\n"
-            f"Occasions: {context.occasions}\n"
-            f"Colors: {context.colors}\n"
-            f"Sizes: {context.sizes}\n"
-            f"Materials: {context.supported_attributes}\n"
-            f"Seasons: {context.seasons if hasattr(context, 'seasons') else []}\n"
-            f"Branches: {[b.branch_code for b in context.branches]}\n\n"
-            "- CUSTOMER INTENT GUIDANCE:\n"
-            "  1. BROAD STORE OFFERINGS INTENT (e.g. 'What products/categories do you offer?', 'What do you sell?', 'What products you have?'): Do NOT search for specific items. Inform the customer of our main categories (Shirts, T-Shirts, Pants, Trousers, Outerwear, Traditional) and ask which category they would like to explore. DO NOT reference or summarize previously discussed products or past search results from earlier in the conversation.\n"
-            "  2. CATEGORY EXPLORATION INTENT (e.g. 't shirts', 'what shirts do you have?', 'show me pants'): ALWAYS invoke `explore_category(category_name=...)`. Present 2-3 featured products in that category AND inform the customer of available subcategories/styles within that category.\n"
-            "  3. IN-CATEGORY EXPANSION INTENT (e.g. 'What other products do you have in it?', 'Show more shirts'): Invoke `search_products` for the current category to retrieve and present additional items in that category.\n"
-            "- STRICT CATEGORY RELEVANCE: ONLY list and present products that strictly belong to the user's requested item category (e.g. if user asks for a shirt, ONLY present shirts/polos/t-shirts; NEVER present pants, hoodies, or other unrelated categories).\n"
-            "- When presenting products to the user, ALWAYS dynamically and professionally open the message appropriate to the query, then list the products exactly in this numbered format:\n"
-            "  1. [Product Name] colors([colors]) and available sizes([sizes]) [price]\n"
-            "  2. ...\n"
-            "  Conclude the message by asking a relevant follow-up question (e.g. asking which they'd like to see details for or add to cart).\n"
-            "- STRICT PRESENTATION RULE: You MUST ONLY discuss, list, and mention the specific products that were just returned by your MOST RECENT `search_products` or `explore_category` tool call. NEVER list or combine products from earlier in the conversation history, as they are no longer visible on the user's screen. The products you list in text MUST perfectly match the tool output.\n"
-            "- ALWAYS SHOW CART PRODUCTS: When show_cart is called or when user asks to show/view cart, you MUST ALWAYS explicitly list all products currently in the cart in your text response (name, color, size, quantity, unit price, and subtotal).\n"
-            "- NO PARENTHETICAL GUIDES OR EXAMPLE FORMATS: NEVER append parenthetical text like '(Please respond with the color and size you prefer, e.g. \"Beige, 32\")' or '(e.g. Navy, 34)' at the end of your response. Ask questions naturally in plain text without adding parenthetical formatting instructions.\n"
-            "- CRITICAL INTENT & TOOL INVOCATION RULES:\n"
-            "  * When user provides VARIANT SELECTION (e.g. 'navy 34', 'navy, 34', 'Beige 32', 'Navy', '34') following a prompt for color/size: You MUST IMMEDIATELY invoke the `add_cart_item` tool with the extracted color and size for the product in state. Do NOT output a text message promising to add it without calling `add_cart_item`. Do NOT ask for another confirmation.\n"
-            "  * When user requests to ADD AN ITEM TO CART (e.g. 'add 1st in cart', 'add trouser in cart'): If color and size are provided, invoke `add_cart_item`. If color or size is missing, invoke `get_product_details` for that item to retrieve available colors and sizes, then ask the customer for their preferred color and size without appending parenthetical guides.\n"
-            "  * When user requests to REMOVE AN ITEM FROM CART: invoke `remove_cart_item` (or `show_cart` if item index is ambiguous).\n"
-            "  * When user requests to VIEW CART: invoke `show_cart`.\n"
-            "  * When user requests CHECKOUT: invoke `preview_checkout`.\n"
-            "  * When user confirms PLACE ORDER: invoke `place_order`.\n"
-            "- Maintain a warm, professional, polite, and cooperative sales tone at all times.\n"
-            "- After order placement, proactively cross-sell by offering exclusive deals, new arrivals, or trending items.\n"
+            "Action Results:\n"
+            f"{results_str}\n\n"
+            "Synthesize a conversational reply for the customer based on these results."
         )
         
-        # 3. Construct messages payload
+        messages = [LLMMessage(role="system", content=system_content)]
+        
+        # Add last few messages for context
+        for msg in state.message_history[-4:]:
+            messages.append(LLMMessage(**msg))
+            
+        try:
+            content, _ = await self._llm.generate_with_tools(messages, tools=[])
+            if content:
+                return content
+        except Exception as exc:
+            logger.warning(f"Synthesis LLM call failed, using raw step results: {exc}")
+
+        return results_str or "I have processed your request."
+
+    async def _local_rule_fallback(self, user_message: str, state: ConversationState, context: StoreContext) -> str:
+        """Local fallback when LLM service is completely unavailable."""
+        from app.agent.schemas import SearchProductsPayload
+        try:
+            search_payload = SearchProductsPayload(query=user_message, limit=3)
+            await self._tools.get_products(state, search_payload)
+        except Exception as exc:
+            logger.warning(f"Fallback search failed: {exc}")
+
+        if state.displayed_products:
+            prod_items = []
+            for idx, dp in enumerate(state.displayed_products, 1):
+                prod_items.append(f"{idx}. {dp.product_name} – Rs {int(dp.price)}")
+            prods_str = "\n".join(prod_items)
+            reply = (
+                f"Welcome to {context.store_name}!\n\n"
+                f"Here are some options from our collection:\n"
+                f"{prods_str}\n\n"
+                f"Which option would you like to know more about?"
+            )
+        else:
+            reply = f"Welcome to {context.store_name}! How can I help you find what you're looking for today?"
+
+        return self.reply(reply, state)
+
+
+    async def _fallback_llm_tool_turn(self, state: ConversationState, context: StoreContext) -> str:
+        """Legacy tool loop used as fallback if intent extraction fails."""
+        store_ctx_str = (
+            f"Brand/Store Context:\n"
+            f"- Brand Name: {context.store_name}\n"
+            f"- Available Categories: {context.categories}\n"
+            f"- Available Product Types: {context.product_types}\n"
+            f"- Available Occasions: {context.occasions}\n"
+            f"- Available Colors: {context.colors}\n"
+            f"- Available Sizes: {context.sizes}\n"
+        )
+        # 2. Build system context
+        system_content = (
+            f"{SYSTEM_PROMPT_ROUTING}\n\n"
+            f"{SYSTEM_PROMPT_VOICE}\n\n"
+            f"{store_ctx_str}\n\n"
+            f"Current State:\n{state.model_dump_json(exclude_defaults=True)}\n\n"
+        )
+        
         messages = [LLMMessage(role="system", content=system_content)]
         for msg in state.message_history:
             messages.append(LLMMessage(**msg))
             
-        # 4. Multi-turn Agent Tool Execution Loop (up to 5 turns)
         max_turns = 5
         last_content = ""
         while max_turns > 0:
             max_turns -= 1
-            logger.info("generating_agent_response_with_tools", extra={"turns_left": max_turns})
             content, tool_calls = await self._llm.generate_with_tools(messages, tools=AGENT_TOOLS)
             if content:
                 last_content = content
                 
             if not tool_calls:
                 if content:
-                    state.message_history.append({"role": "assistant", "content": content})
-                    return content
-                return last_content or "I have processed your request."
+                    return self.reply(content, state)
+                return self.reply(last_content or "I have processed your request.", state)
                 
-            # Append assistant tool call message to history & payload
             assistant_msg = {"role": "assistant", "content": content, "tool_calls": tool_calls}
             state.message_history.append(assistant_msg)
             messages.append(LLMMessage(**assistant_msg))
             
-            has_search = any(tc.get("function", {}).get("name") in ["search_products", "explore_category"] for tc in tool_calls)
-            if has_search:
-                state.displayed_products.clear()
-            
-            # Execute all tool calls in this turn
             for tc in tool_calls:
                 tc_id = tc.get("id")
                 func_name = tc.get("function", {}).get("name")
@@ -137,178 +309,26 @@ class SingleAgent:
                 except Exception:
                     args = {}
                     
-                from app.agent.checker import ParameterRequirementsChecker
-                validation_error = await ParameterRequirementsChecker.check_action_requirements(func_name, args, state, self._tools)
-                if validation_error:
-                    result_str = validation_error
+                spec = TOOL_REGISTRY.get(func_name)
+                
+                if not spec:
+                    result_str = f"Unknown tool: {func_name}"
                 else:
-                    result_str = await self._execute_tool(func_name, args, state, context)
+                    validation_error = await ParameterRequirementsChecker.check(spec, args, state)
+                    if validation_error:
+                        result_str = validation_error
+                    else:
+                        try:
+                            payload = spec.payload_model(**args)
+                            res = await spec.handler(state, payload)
+                            result_str = res if isinstance(res, str) else str(res)
+                        except Exception as e:
+                            result_str = f"Error executing {func_name}: {str(e)}"
                 
                 tool_msg = {"role": "tool", "tool_call_id": tc_id, "content": result_str}
                 state.message_history.append(tool_msg)
                 messages.append(LLMMessage(**tool_msg))
 
         if last_content:
-            state.message_history.append({"role": "assistant", "content": last_content})
-            return last_content
-        return "I have executed the requested actions."
-
-    async def _execute_tool(self, func_name: str, args: dict, state: ConversationState, context: StoreContext) -> str:
-        """Dispatch tool calls to AgentTools and return stringified results."""
-        try:
-            if func_name == "explore_category":
-                state.current_intent = "search"
-                payload = ExploreCategoryPayload(**args)
-                res = await self._tools.explore_category(state, payload)
-                
-                cat_name = state.categories[0] if state.categories else payload.category_name
-                if res.products:
-                    subcats = sorted(list(set(p.product_type for p in res.products if p.product_type and p.product_type.lower() != cat_name.lower())))
-                    subcats_info = f"Available subcategories/styles in {cat_name}: {', '.join(subcats)}." if subcats else ""
-                    
-                    lines = [f"Retrieved 2-3 featured products for category '{cat_name}':"]
-                    for i, p in enumerate(res.products[:3], 1):
-                        is_avail = any(v.is_available for v in p.variants) if hasattr(p, "variants") else True
-                        avail_str = "Available" if is_avail else "Out of Stock"
-                        lines.append(f"Option {i}: {p.product_name} | Price: Rs {p.final_price} | {avail_str}")
-                        if hasattr(p, "variants"):
-                            colors = sorted(list(set(v.color for v in p.variants if v.is_available)))
-                            sizes = sorted(list(set(v.size for v in p.variants if v.is_available)))
-                            lines.append(f"  Available Colors: {', '.join(colors) if colors else 'None'}")
-                            lines.append(f"  Available Sizes: {', '.join(sizes) if sizes else 'None'}")
-                    
-                    if subcats_info:
-                        lines.append(subcats_info)
-                    lines.append(f"INSTRUCTION: Present these 2-3 featured {cat_name} options to the user, and inform them of available subcategories/styles in {cat_name} ({', '.join(subcats) if subcats else 'various styles'}). Ask if they would like to explore a subcategory, select an option for details, or add to cart. DO NOT append parenthetical response guides.")
-                    return "\n".join(lines)
-                
-                avail_cats = ", ".join(context.categories) if hasattr(context, "categories") and context.categories else "Shirts, T-Shirts, Pants, Trousers, Outerwear, Traditional"
-                return f"No products found in category '{cat_name}'. Available store categories: {avail_cats}. INSTRUCTION: Tell the user no products were found in '{cat_name}', list the available store categories ({avail_cats}), and ask which one they would like to explore."
-
-            elif func_name == "search_products":
-                state.current_intent = "search"
-                payload = SearchProductsPayload(**args)
-                res = await self._tools.get_products(state, payload)
-                
-                if res.products:
-                    cats_str = " and ".join(state.categories) if state.categories else "the catalog"
-                    lines = [f"Retrieved {len(res.products)} products for {cats_str}:"]
-                    for i, p in enumerate(res.products, 1):
-                        is_avail = any(v.is_available for v in p.variants) if hasattr(p, "variants") else True
-                        avail_str = "Available" if is_avail else "Out of Stock"
-                        cat_label = f" (Category: {p.category_name})" if hasattr(p, "category_name") and p.category_name else ""
-                        lines.append(f"Option {i}: {p.product_name}{cat_label} | Price: Rs {p.final_price} | {avail_str}")
-                        if hasattr(p, "variants"):
-                            colors = sorted(list(set(v.color for v in p.variants if v.is_available)))
-                            sizes = sorted(list(set(v.size for v in p.variants if v.is_available)))
-                            lines.append(f"  Available Colors: {', '.join(colors) if colors else 'None'}")
-                            lines.append(f"  Available Sizes: {', '.join(sizes) if sizes else 'None'}")
-                    lines.append(f"INSTRUCTION: Present products clearly for ALL requested categories ({cats_str}) to the user. Show options for each requested category. DO NOT append parenthetical response guides.")
-                    return "\n".join(lines)
-                
-                avail_cats = ", ".join(context.categories) if hasattr(context, "categories") and context.categories else "Shirts, T-Shirts, Pants, Trousers, Outerwear, Traditional"
-                return f"No products found matching these specific criteria. Available store categories are: {avail_cats}. INSTRUCTION: Tell the user no items matched their query, inform them of our available categories ({avail_cats}), and ask which category they would like to explore."
-                
-            elif func_name == "get_product_details":
-                state.current_intent = "get_details"
-                payload = GetProductDetailsPayload(**args)
-                details = await self._tools.get_product_details(payload, state)
-                if details:
-                    p = details.product
-                    # Summarize variants
-                    available_colors = set()
-                    available_sizes = set()
-                    for v in p.variants:
-                        if v.is_available:
-                            available_colors.add(v.color)
-                            available_sizes.add(v.size)
-                    
-                    return (
-                        f"Product Details for {p.product_name} (ID: {p.product_id})\n"
-                        f"Price: {p.final_price}\n"
-                        f"Available Colors: {', '.join(available_colors) if available_colors else 'None'}\n"
-                        f"Available Sizes: {', '.join(available_sizes) if available_sizes else 'None'}"
-                    )
-                return "Product not found or not selected."
-                
-            elif func_name == "add_cart_item":
-                payload = AddCartItemPayload(**args)
-                cart = await self._tools.add_cart_item(state, payload)
-                if cart:
-                    state.displayed_products.clear()
-                    color_size_str = f" ({payload.color}, Size {payload.size})" if payload.color and payload.size else ""
-                    return f"Item{color_size_str} successfully added to cart. INSTRUCTION: Confirm to the user that the item{color_size_str} has been added to their cart, and ask if they wish to proceed to checkout or explore more products. DO NOT append parenthetical response guides or example text."
-
-                # Fetch product details to report available variants to LLM for clarification or out-of-stock reporting
-                product_id = payload.product_id or state.selected_product_id
-                if not product_id and payload.selected_product_index is not None:
-                    idx = payload.selected_product_index
-                    if 1 <= idx <= len(state.displayed_products):
-                        product_id = state.displayed_products[idx - 1].product_id
-                if not product_id and state.displayed_products:
-                    product_id = state.displayed_products[0].product_id
-
-                if product_id:
-                    details = await self._tools.get_product_details(GetProductDetailsPayload(product_id=product_id), state)
-                    if details and details.product and details.product.variants:
-                        p = details.product
-                        colors = sorted(list(set(v.color for v in p.variants if v.is_available)))
-                        sizes = sorted(list(set(v.size for v in p.variants if v.is_available)))
-                        
-                        if payload.color and payload.size:
-                            return (
-                                f"The requested variant (Color: '{payload.color}', Size: '{payload.size}') is currently out of stock or unavailable for {p.product_name}.\n"
-                                f"Available Colors in stock: {', '.join(colors) if colors else 'None'}\n"
-                                f"Available Sizes in stock: {', '.join(sizes) if sizes else 'None'}\n"
-                                "INSTRUCTION: Politely inform the user that their requested color/size variant is currently unavailable in stock, list the available colors and sizes, and ask them to choose from the available options. DO NOT append parenthetical response guides."
-                            )
-                        
-                        return (
-                            f"Cannot add {p.product_name} to cart directly because variant selection (color and size) is required.\n"
-                            f"Available Colors: {', '.join(colors) if colors else 'None'}\n"
-                            f"Available Sizes: {', '.join(sizes) if sizes else 'None'}\n"
-                            "INSTRUCTION: Politely and professionally ask the user which color and size they prefer from the available options before adding to cart. DO NOT append parenthetical response guides or example text (e.g. do not add '(Please respond with...)')."
-                        )
-                return "Failed to add item. Ensure size and color are specified and the item is in stock. INSTRUCTION: Professionally ask the user to clarify their preferred size and color. DO NOT append parenthetical guides."
-                
-            elif func_name == "remove_cart_item":
-                payload = RemoveCartItemPayload(**args)
-                cart = await self._tools.remove_cart_item(state, payload)
-                if cart:
-                    return "Item successfully removed from cart."
-                return "Failed to remove item. The cart might be empty or the item was not found."
-                
-            elif func_name == "show_cart":
-                if state.cart.items:
-                    lines = [f"Cart Subtotal: Rs {state.cart.subtotal:.2f}"]
-                    for i, item in enumerate(state.cart.items, 1):
-                        lines.append(f"{i}. {item.product_name} - Color: {item.color}, Size: {item.size} (Qty: {item.quantity}) - Rs {item.price:.2f}")
-                    cart_str = "\n".join(lines)
-                    return f"Current Cart Items:\n{cart_str}\nINSTRUCTION: You MUST explicitly list ALL these cart items in your text response to the user with their name, color, size, quantity, and price. Conclude by asking if they want to proceed to checkout or keep shopping."
-                return "The cart is currently empty. INSTRUCTION: Inform the user that their cart is currently empty and ask if they would like to explore products."
-                
-            elif func_name == "preview_checkout":
-                state.current_intent = "checkout"
-                state.displayed_products.clear()
-                preview = await self._tools.preview_checkout(state)
-                if preview:
-                    return f"Checkout Preview Ready. Total: {preview.total_amount}. INSTRUCTION: Do NOT list the specific products in the cart. Ask the user for their delivery details (name, phone, address, city) to proceed with placing the order."
-                return "Cart is empty."
-                
-            elif func_name == "place_order":
-                payload = PlaceOrderPayload(**args)
-                state.displayed_products.clear()
-                order = await self._tools.place_order(state, payload)
-                if order:
-                    return f"Order placed successfully! Order Number: {order.order_number}. INSTRUCTION: Say the order is confirmed, will dispatch shortly (5-7 days). Then proactively cross-sell by offering exclusive deals or trending items. DO NOT end the conversation awkwardly."
-                return "Failed to place order. Cart might be empty or details invalid."
-                
-            elif func_name == "get_promotions":
-                return await self._tools.get_promotions()
-                
-            else:
-                return f"Unknown tool: {func_name}"
-                
-        except Exception as e:
-            logger.error(f"Error executing tool {func_name}: {e}")
-            return f"Error executing tool {func_name}: {str(e)}"
+            return self.reply(last_content, state)
+        return self.reply("I have executed the requested actions.", state)
