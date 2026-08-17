@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Any
+from uuid import UUID
 import json
 
 class Budget(BaseModel):
@@ -35,6 +36,27 @@ class AddCartItemPayload(BaseModel):
     color: Optional[str] = Field(None, description="The explicitly chosen color for the item. DO NOT GUESS or infer from history.")
     size: Optional[str] = Field(None, description="The explicitly chosen size for the item. DO NOT GUESS or infer from history.")
     quantity: int = Field(1, description="Quantity to add")
+
+class UpdateCartItemPayload(BaseModel):
+    """Update the quantity of an item in the cart."""
+    item_index: Optional[int] = Field(None, description="The 1-based index of the item in the cart to update.")
+    product_name: Optional[str] = Field(None, description="The name of the product to update.")
+    new_quantity: int = Field(..., ge=1, description="The new quantity (must be at least 1).")
+
+class ClearCartPayload(BaseModel):
+    """Clear all items from the cart."""
+    pass
+
+class CheckAvailabilityPayload(BaseModel):
+    """Check availability of a specific product variant."""
+    product_id: int = Field(..., description="The ID of the product.")
+    color: Optional[str] = Field(None, description="The specific color.")
+    size: Optional[str] = Field(None, description="The specific size.")
+    branch: Optional[str] = Field(None, description="The branch name to check.")
+
+class GetOrderStatusPayload(BaseModel):
+    """Retrieve the status of an existing order."""
+    order_id: UUID = Field(..., description="The order ID to look up.")
 
 class PreviewCheckoutPayload(BaseModel):
     """Preview the checkout total and get ready to ask for delivery info."""

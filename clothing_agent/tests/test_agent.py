@@ -482,7 +482,7 @@ class TestVariantCheckBeforeCart:
         # Payload with no color or size
         payload = AddCartItemPayload(product_id=10)
         res = await tools.add_cart_item(state, payload)
-        assert res is None, "add_cart_item should reject direct add when multiple variants exist and color/size are missing"
+        assert res is not None and "Cannot add" in res, "add_cart_item should reject direct add when multiple variants exist and color/size are missing"
 
     @pytest.mark.asyncio
     async def test_add_cart_item_specific_variants_accepted(self):
@@ -535,11 +535,11 @@ class TestVariantCheckBeforeCart:
         tools = AgentTools(mock_client)
 
         mock_llm = AsyncMock()
-        agent = SingleAgent(llm=mock_llm, tools=tools)
+        agent = SingleAgent(llm=mock_llm, tools=tools, intent_extractor=AsyncMock())
         state = ConversationState(session_id="s_exec_test")
         state.record_displayed_products([product])
 
-        result_str = await agent._execute_tool("add_cart_item", {"selected_product_index": 1}, state, store_context)
+        result_str = await agent._execute_intent(StructuredIntent(intent="add_to_cart", selected_product_index=1), state, store_context)
         assert "Cannot add Multi-Variant Oxford to cart directly" in result_str
         assert "Available Colors: Black, White" in result_str or "White" in result_str
         assert "Available Sizes: L, M" in result_str or "M" in result_str
@@ -569,7 +569,61 @@ class TestNoHardcodedTruth:
         assert "PURPOSES = {" not in source
 
     def test_prompt_does_not_embed_specific_products(self):
-        from app.llm.prompts import SYSTEM_PROMPT
-        assert "NS-SH-001" not in SYSTEM_PROMPT
-        assert "4500" not in SYSTEM_PROMPT
+        from app.llm.prompts import SYSTEM_PROMPT_VOICE
+        assert "NS-SH-001" not in SYSTEM_PROMPT_VOICE
+        assert "4500" not in SYSTEM_PROMPT_VOICE
+
+
+# ===================================================================
+# 8. PRODUCT CARD SYNCHRONIZATION TESTS
+# ===================================================================
+
+class TestProductCardSynchronization:
+    """Verify that displayed products and product cards strictly match response prose."""
+
+    def test_sync_filters_to_described_products(self):
+        state = ConversationState(session_id="s_sync")
+        state.current_intent = "search"
+        p1 = _make_product(product_id=3, article_code="NS-SH-0003", product_name="Casual Button-Down")
+        p2 = _make_product(product_id=4, article_code="NS-SH-0004", product_name="Essential Dress Shirt")
+        p3 = _make_product(product_id=7, article_code="NS-SH-0007", product_name="Modern Printed Shirt")
+        p4 = _make_product(product_id=13, article_code="NS-T--0013", product_name="Vintage Graphic Tee")
+        p5 = _make_product(product_id=19, article_code="NS-T--0019", product_name="Athletic V-Neck T-Shirt")
+        p6 = _make_product(product_id=22, article_code="NS-T--0022", product_name="Premium Graphic Tee")
+        state.record_displayed_products([p1, p2, p3, p4, p5, p6])
+        assert len(state.displayed_products) == 6
+
+        reply = (
+            "Here are a few casual shirts perfect for summer:\n\n"
+            "1. **Casual Button‑Down** – Rs 2,610\n"
+            "2. **Essential Dress Shirt** – Rs 2,790\n"
+            "3. **Modern Printed Shirt** – Rs 2,430\n\n"
+            "Which one catches your eye? Let me know your preferred color and size, and I'll add it to your cart."
+        )
+
+        state.sync_displayed_products_with_reply(reply)
+
+        assert len(state.displayed_products) == 3
+        assert len(state.product_cards) == 3
+        card_names = [card.product.product_name for card in state.product_cards]
+        assert card_names == ["Casual Button-Down", "Essential Dress Shirt", "Modern Printed Shirt"]
+        assert "Vintage Graphic Tee" not in card_names
+        assert "Athletic V-Neck T-Shirt" not in card_names
+        assert "Premium Graphic Tee" not in card_names
+
+    def test_sync_single_product_details(self):
+        state = ConversationState(session_id="s_sync_single")
+        state.current_intent = "get_details"
+        p1 = _make_product(product_id=1, article_code="NS-SH-001", product_name="Classic Oxford")
+        p2 = _make_product(product_id=2, article_code="NS-SH-002", product_name="Polo Shirt")
+        state.record_displayed_products([p1, p2])
+
+        reply = "Here are the details for Classic Oxford (Rs 2,500). Available in White, Blue."
+        state.sync_displayed_products_with_reply(reply)
+
+        assert len(state.displayed_products) == 1
+        # Product cards are suppressed during details queries
+        assert len(state.product_cards) == 0
+        assert state.displayed_products[0].product_name == "Classic Oxford"
+
 

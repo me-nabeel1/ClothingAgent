@@ -24,16 +24,18 @@ from app.clients.clothing_app.schemas import (
     StoreOrderPreview,
     PlaceOrderRequest,
     OrderView,
+    OfferSummary,
 )
 from app.core.config import AgentConfig
 from app.core.errors import AgentError
 from pydantic import BaseModel
+from app.clients.port import BackendPort
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 
-class ClothingAppClient:
+class ClothingAppClient(BackendPort):
     """Typed access to product, inventory, and cart APIs.
 
     The agent never imports clothing-application repositories, SQLAlchemy
@@ -176,6 +178,19 @@ class ClothingAppClient:
             json=request.model_dump(mode="json"),
             response_model=OrderView,
         )
+
+    async def get_order(self, order_id: UUID) -> OrderView:
+        """Lookup an existing order."""
+        return await self._request(
+            "GET",
+            f"/api/v1/orders/{order_id}",
+            response_model=OrderView,
+        )
+
+    async def get_promotions(self) -> list[OfferSummary]:
+        """Retrieve active promotions."""
+        data = await self._request("GET", "/api/v1/promotions", response_model=None)
+        return [OfferSummary.model_validate(item) for item in data]
 
     async def _request(
         self,

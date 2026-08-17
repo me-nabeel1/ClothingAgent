@@ -66,17 +66,23 @@ def mock_client() -> AsyncMock:
     )
     return client
 
+@pytest.fixture
+def mock_extractor() -> AsyncMock:
+    extractor = AsyncMock()
+    extractor.extract.side_effect = Exception("Fallback to legacy tool turn for tests")
+    return extractor
+
 class TestBehavioralScenarios:
     
     @pytest.mark.asyncio
-    async def test_scenario_1_broad_search(self, mock_client, store_context):
+    async def test_scenario_1_broad_search(self, mock_client, store_context, mock_extractor):
         """Scenario 1 - Broad search: 'I need something for a wedding.'"""
         mock_llm = AsyncMock()
         mock_llm.generate_with_tools.side_effect = [
-            (None, [{"id": "c1", "function": {"name": "search_products", "arguments": '{"occasions": ["wedding"]}'}}]),
+            (None, [{"id": "c1", "function": {"name": "search", "arguments": '{"occasions": ["wedding"]}'}}]),
             ("Here are wedding options for you.", None)
         ]
-        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client))
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
         state = ConversationState(session_id="s1")
         
         reply = await agent.process_message("I need something for a wedding.", state, store_context)
@@ -85,21 +91,21 @@ class TestBehavioralScenarios:
         assert reply == "Here are wedding options for you."
 
     @pytest.mark.asyncio
-    async def test_scenario_2_refinement(self, mock_client, store_context):
+    async def test_scenario_2_refinement(self, mock_client, store_context, mock_extractor):
         """Scenario 2 - Refinement: Wedding clothes -> black ones -> size L."""
         mock_llm = AsyncMock()
         mock_llm.generate_with_tools.side_effect = [
             # Turn 1
-            (None, [{"id": "c1", "function": {"name": "search_products", "arguments": '{"occasions": ["wedding"]}'}}]),
+            (None, [{"id": "c1", "function": {"name": "search", "arguments": '{"occasions": ["wedding"]}'}}]),
             ("Here are wedding clothes.", None),
             # Turn 2
-            (None, [{"id": "c2", "function": {"name": "search_products", "arguments": '{"colors": ["Black"]}'}}]),
+            (None, [{"id": "c2", "function": {"name": "search", "arguments": '{"colors": ["Black"]}'}}]),
             ("Here are black wedding clothes.", None),
             # Turn 3
-            (None, [{"id": "c3", "function": {"name": "search_products", "arguments": '{"sizes": {"Shirts": "L"}}'}}]),
+            (None, [{"id": "c3", "function": {"name": "search", "arguments": '{"sizes": {"Shirts": "L"}}'}}]),
             ("Here are black wedding clothes in size L.", None),
         ]
-        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client))
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
         state = ConversationState(session_id="s2")
         
         # 1. Broad
@@ -118,14 +124,14 @@ class TestBehavioralScenarios:
         assert state.size_preferences == {"Shirts": "L"}
 
     @pytest.mark.asyncio
-    async def test_scenario_3_multi_category(self, mock_client, store_context):
+    async def test_scenario_3_multi_category(self, mock_client, store_context, mock_extractor):
         """Scenario 3 - Multiple categories: 'Show me hoodies and jackets.'"""
         mock_llm = AsyncMock()
         mock_llm.generate_with_tools.side_effect = [
-            (None, [{"id": "c1", "function": {"name": "search_products", "arguments": '{"product_types": ["hoodie", "jacket"], "categories": ["Outerwear"]}'}}]),
+            (None, [{"id": "c1", "function": {"name": "search", "arguments": '{"product_types": ["hoodie", "jacket"], "categories": ["Outerwear"]}'}}]),
             ("Here are hoodies and jackets.", None)
         ]
-        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client))
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
         state = ConversationState(session_id="s3")
         
         await agent.process_message("Show me hoodies and jackets.", state, store_context)
@@ -133,14 +139,14 @@ class TestBehavioralScenarios:
         mock_client.search_products.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_scenario_5_product_detail(self, mock_client, store_context):
+    async def test_scenario_5_product_detail(self, mock_client, store_context, mock_extractor):
         """Scenario 5 - Product detail: 'Tell me more about product 1.'"""
         mock_llm = AsyncMock()
         mock_llm.generate_with_tools.side_effect = [
-            (None, [{"id": "c1", "function": {"name": "get_product_details", "arguments": '{"selected_product_index": 1}'}}]),
+            (None, [{"id": "c1", "function": {"name": "get_details", "arguments": '{"selected_product_index": 1}'}}]),
             ("Here are the details for product 1.", None)
         ]
-        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client))
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
         state = ConversationState(session_id="s5")
         state.record_displayed_products([_make_mock_product()])
         
@@ -149,14 +155,14 @@ class TestBehavioralScenarios:
         assert response == "Here are the details for product 1."
 
     @pytest.mark.asyncio
-    async def test_scenario_6_cart(self, mock_client, store_context):
+    async def test_scenario_6_cart(self, mock_client, store_context, mock_extractor):
         """Scenario 6 - Cart: 'Add product 1 in Black, size L.'"""
         mock_llm = AsyncMock()
         mock_llm.generate_with_tools.side_effect = [
-            (None, [{"id": "c1", "function": {"name": "add_cart_item", "arguments": '{"selected_product_index": 1, "color": "Black", "size": "L"}'}}]),
+            (None, [{"id": "c1", "function": {"name": "add_to_cart", "arguments": '{"selected_product_index": 1, "color": "Black", "size": "L"}'}}]),
             ("Product 1 added to cart.", None)
         ]
-        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client))
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
         state = ConversationState(session_id="s6")
         state.record_displayed_products([_make_mock_product()])
         
@@ -165,14 +171,14 @@ class TestBehavioralScenarios:
         assert state.cart.item_count == 1
 
     @pytest.mark.asyncio
-    async def test_scenario_7_checkout(self, mock_client, store_context):
+    async def test_scenario_7_checkout(self, mock_client, store_context, mock_extractor):
         """Scenario 7 - Checkout: 'Checkout.'"""
         mock_llm = AsyncMock()
         mock_llm.generate_with_tools.side_effect = [
-            (None, [{"id": "c1", "function": {"name": "preview_checkout", "arguments": "{}"}}]),
+            (None, [{"id": "c1", "function": {"name": "checkout", "arguments": "{}"}}]),
             ("Please provide delivery details.", None)
         ]
-        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client))
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
         state = ConversationState(session_id="s7")
         state.cart.cart_id = uuid4()
         
@@ -180,14 +186,14 @@ class TestBehavioralScenarios:
         mock_client.preview_cart.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_scenario_8_confirmation_order(self, mock_client, store_context):
+    async def test_scenario_8_confirmation_order(self, mock_client, store_context, mock_extractor):
         """Scenario 8 - Confirmation: Place order with delivery details."""
         mock_llm = AsyncMock()
         mock_llm.generate_with_tools.side_effect = [
             (None, [{"id": "c1", "function": {"name": "place_order", "arguments": '{"customer_name": "John", "phone": "123", "delivery_address": "Main St", "city": "LHR"}'}}]),
             ("Order placed successfully! Order Number: ORD-123.", None)
         ]
-        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client))
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
         state = ConversationState(session_id="s8")
         state.cart.cart_id = uuid4()
         

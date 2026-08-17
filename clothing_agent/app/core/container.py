@@ -11,6 +11,10 @@ from app.llm.client import LLMClient
 from app.context.store import StoreContextManager
 from app.agent.tools import AgentTools
 from app.agent.agent import SingleAgent
+from app.agent.intent import IntentExtractor
+
+
+from app.agent.registry import register_all_tools
 
 
 class AppContainer:
@@ -25,7 +29,11 @@ class AppContainer:
         # New Single Agent Foundation
         self.store_context = StoreContextManager(self.clothing_app)
         self.tools = AgentTools(self.clothing_app)
-        self.agent = SingleAgent(self.llm, self.tools)
+        
+        register_all_tools(self.tools)
+        
+        self.intent_extractor = IntentExtractor(self.llm)
+        self.agent = SingleAgent(self.llm, self.tools, self.intent_extractor)
 
     async def close(self) -> None:
         """Release shared HTTP connections during shutdown."""
