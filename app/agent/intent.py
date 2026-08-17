@@ -173,6 +173,21 @@ class IntentExtractor:
             "    - Map 'show my card', 'what's in my card', 'میرے کارڈ میں کیا ہے', 'میرا کارڈ دکھاؤ', 'بیگ دکھاؤ' to intent 'show_cart'.\n"
             "    - Map 'add to card', 'put in card', 'کارڈ میں ڈالو', 'گاڑی میں رکھو' to intent 'add_to_cart'.\n"
             "    - Map 'remove from card', 'empty my card', 'کارڈ سے نکالو', 'کارڈ صاف کرو' to intent 'remove_cart' or 'clear_cart'.\n"
+            "16. Urdu Script Equal-Footing & Vocabulary Mapping (CRITICAL):\n"
+            "    - Urdu Script (اردو) MUST be treated on 100% equal footing with English in extraction, filter mapping, and intent planning.\n"
+            "    - Map Urdu category words to backend catalog categories:\n"
+            "      'شرٹ' / 'شرٹس' -> 'Shirts', 'ٹی شرٹ' / 'ٹی شرٹس' -> 'T-Shirts', 'پینٹ' / 'پینٹس' -> 'Pants', 'ٹراؤزر' / 'ٹراؤزرز' -> 'Trousers', 'جینز' -> 'Jeans', 'ہوڈی' / 'جیکٹ' -> 'Outerwear', 'شلوار' / 'کرتا' / 'روایتی' -> 'Traditional', 'ایکٹو ویئر' / 'جم' -> 'Activewear'.\n"
+            "    - Map Urdu colors to backend colors:\n"
+            "      'سفید' / 'وائٹ' -> 'White', 'کالا' / 'بلیک' -> 'Black', 'نیلا' / 'نیوی' -> 'Navy', 'سبز' / 'زیتونی' -> 'Olive', 'گری' / 'گرے' -> 'Grey', 'نیوی' -> 'Navy'.\n"
+            "    - Map Urdu sizes to backend sizes:\n"
+            "      'لارج' / 'ایل' -> 'L', 'میڈیم' / 'ایم' -> 'M', 'اسمال' / 'ایس' -> 'S', 'ایکٹرا لارج' / 'ایکس ایل' -> 'XL'.\n"
+            "    - Map Urdu ordinal numbers to selected_product_index:\n"
+            "      'پہلا' / 'پہلی' / 'اپشن 1' / 'آپشن 1' -> 1, 'دوسرا' / 'دوسری' / 'اپشن 2' / 'آپشن 2' -> 2, 'تیسرا' / 'تیسری' / 'اپشن 3' / 'آپشن 3' -> 3, 'چوتھا' / 'چوتھی' / 'اپشن 4' / 'آپشن 4' -> 4, 'پانچواں' / 'پانچویں' / 'اپشن 5' / 'آپشن 5' -> 5, 'چھٹا' / 'چھٹی' / 'اپشن 6' / 'آپشن 6' -> 6.\n"
+            "    - Map Urdu intent actions:\n"
+            "      'کارڈ میں ڈالو' / 'ٹوکری میں رکھو' / 'اضافہ کرو' -> 'add_to_cart'.\n"
+            "      'کارڈ دکھاؤ' / 'میرا بیگ دکھاؤ' / 'سامان دکھاؤ' -> 'show_cart'.\n"
+            "      'نکالو' / 'ہٹاؤ' / 'کارڈ سے ختم کرو' -> 'remove_cart'.\n"
+            "      'تفصیلات' / 'مزید بتاؤ' / 'یہ کیسا ہے' -> 'get_details'.\n"
         )
 
         messages = [

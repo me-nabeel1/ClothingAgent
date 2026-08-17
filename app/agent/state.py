@@ -499,7 +499,7 @@ class ConversationState(BaseModel):
                 matched_products.append(dp)
 
         if not matched_products:
-            option_matches = re.findall(r'(?:Option|\b)\s*([1-9])\b[\s\.\:\-–\)]', reply, re.IGNORECASE)
+            option_matches = re.findall(r'(?:Option|اپشن|آپشن|نمبر|\b)\s*([1-9])\b[\s\.\:\-–\)]', reply, re.IGNORECASE)
             if option_matches:
                 indices = []
                 for m in option_matches:
