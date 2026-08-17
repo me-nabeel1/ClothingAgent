@@ -511,19 +511,20 @@ class ConversationState(BaseModel):
 
         if matched_products:
             self.displayed_products = matched_products
-        else:
-            self.displayed_products = []
 
         matched_ids = {dp.product_id for dp in self.displayed_products}
 
-        # Product cards are displayed for search, explore_category, show_cart, remove_cart, add_to_cart, get_details when products are described in text.
-        if self.current_intent in ["search", "explore_category", "show_cart", "remove_cart", "add_to_cart", "get_details"] and self.displayed_products:
+        # Product cards handling:
+        if self.current_intent in ["show_cart", "remove_cart", "add_to_cart", "get_details"]:
+            # For cart and detail operations, preserve the exact product_cards set by the tool
+            if not self.product_cards and self.displayed_products:
+                self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
+        elif self.current_intent in ["search", "explore_category"] and self.displayed_products:
             if self.product_cards:
-                filtered_cards = [c for c in self.product_cards if c.product.product_id in matched_ids]
-                if filtered_cards:
-                    self.product_cards = filtered_cards
-                else:
-                    self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
+                if matched_ids:
+                    filtered_cards = [c for c in self.product_cards if c.product.product_id in matched_ids]
+                    if filtered_cards:
+                        self.product_cards = filtered_cards
             else:
                 self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
         else:

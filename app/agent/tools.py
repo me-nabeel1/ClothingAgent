@@ -388,6 +388,9 @@ class AgentTools:
             item_count=cart.total_quantity,
             subtotal=float(cart.subtotal)
         )
+        if details and details.product:
+            state.record_displayed_products([details.product])
+            state.product_cards = [ProductCard(product=details.product)]
         cart_item_lines = [
             f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: Rs {item.unit_price}"
             for idx, item in enumerate(cart.items, 1)

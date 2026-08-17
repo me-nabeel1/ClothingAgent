@@ -64,6 +64,7 @@ class SingleAgent:
         # 3. Execute plan sequentially
         step_results = []
         for step in plan.steps:
+            state.current_intent = step.intent.intent
             # Check dependency verification
             if step.depends_on:
                 verify_flag = next((s.verify for s in plan.steps if s.step_id == step.depends_on), None)
@@ -84,7 +85,7 @@ class SingleAgent:
             selected_indices = getattr(step.intent, "selected_product_indices", [])
             if not selected_indices and getattr(step.intent, "selected_product_index", None) is not None:
                 selected_indices = [step.intent.selected_product_index]
-            if selected_indices and state.displayed_products and step.intent.intent not in ["search", "remove_cart", "clear_cart"]:
+            if selected_indices and state.displayed_products and step.intent.intent not in ["search", "add_to_cart", "remove_cart", "show_cart", "clear_cart"]:
                 state.filter_displayed_cards(selected_indices)
 
         # 4. Synthesize final reply
@@ -166,7 +167,12 @@ class SingleAgent:
             if filters.excluded_colors: args["excluded_colors"] = filters.excluded_colors
             if filters.sizes:
                 args["size_mapping"] = filters.sizes
-                args["size"] = next(iter(filters.sizes.values()))
+                if isinstance(filters.sizes, dict) and filters.sizes:
+                    args["size"] = next(iter(filters.sizes.values()))
+                elif isinstance(filters.sizes, list) and filters.sizes:
+                    args["size"] = str(filters.sizes[0])
+                elif isinstance(filters.sizes, str):
+                    args["size"] = filters.sizes
             if filters.materials: args["materials"] = filters.materials
             if filters.fits: args["fits"] = filters.fits
             if filters.budget:
