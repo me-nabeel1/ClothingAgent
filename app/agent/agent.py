@@ -7,8 +7,15 @@ from typing import Optional, Any
 from app.agent.state import ConversationState
 from app.agent.schemas import tools as AGENT_TOOLS
 from app.agent.registry import TOOL_REGISTRY
-from app.agent.checker import ParameterRequirementsChecker
 from app.agent.intent import IntentExtractor, StructuredIntent, IntentPlan
+from app.agent.utils import (
+    clean_reply_formatting,
+    format_store_context_str,
+    is_greeting_or_reset_message,
+    build_concierge_greeting,
+    execute_validated_tool,
+    args_from_intent,
+)
 from app.clients.clothing_app.schemas import StoreContext
 from app.llm.client import LLMClient, LLMMessage
 from app.llm.prompts import SYSTEM_PROMPT_ROUTING, SYSTEM_PROMPT_VOICE
@@ -17,46 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 def _clean_reply_formatting(reply: str) -> str:
-    """Post-processing filter to strip forbidden currency symbols (₹, Rs, PKR, .00), eliminate Devanagari Hindi characters, Roman Urdu leaks, and enforce whole integer prices with rupees/روپے labels."""
-    if not reply:
-        return reply
-
-    import re
-
-    # 1. Clean decimal .00 endings (e.g. 1500.00 -> 1500)
-    reply = re.sub(r'\b([0-9]+)\.00\b', r'\1', reply)
-
-    # 2. Strip Devanagari Hindi script characters if any slip through
-    reply = re.sub(r'[\u0900-\u097F]+', '', reply)
-
-    # 3. Replace Indian Rupee symbol (₹) or ₹ 1500 -> 1500 rupees
-    reply = re.sub(r'₹\s*([0-9]+)', r'\1 rupees', reply)
-    reply = re.sub(r'₹', '', reply)
-
-    # 4. Replace Rs. 1500 / Rs 1500 / PKR 1500 -> 1500 rupees
-    reply = re.sub(r'(?:Rs\.?|PKR)\s*([0-9]+)', r'\1 rupees', reply)
-
-    # 5. Remove duplicate currency labels (e.g. 1500 rupees rupees -> 1500 rupees)
-    reply = re.sub(r'\b(rupees|روپے)\s+\1\b', r'\1', reply)
-
-    # 6. Replace common Roman Urdu lead phrases if LLM leaked them
-    roman_urdu_fixes = [
-        (r'\bAap ke cart me\b', 'In your cart', re.IGNORECASE),
-        (r'\bAap ka\b', 'Your', re.IGNORECASE),
-        (r'\bAap ki\b', 'Your', re.IGNORECASE),
-        (r'\bAap ke\b', 'Your', re.IGNORECASE),
-        (r'\bPehla option\b', 'Option 1', re.IGNORECASE),
-        (r'\bDusra option\b', 'Option 2', re.IGNORECASE),
-        (r'\bTeesra option\b', 'Option 3', re.IGNORECASE),
-        (r'\bChautha option\b', 'Option 4', re.IGNORECASE),
-        (r'\bShukriya\b', 'Thank you', re.IGNORECASE),
-        (r'\bBatao\b', 'Tell me', re.IGNORECASE),
-        (r'\bKardo\b', 'Do it', re.IGNORECASE),
-    ]
-    for pattern, replacement, flags in roman_urdu_fixes:
-        reply = re.sub(pattern, replacement, reply, flags=flags)
-
-    return reply
+    """Delegated to clean_reply_formatting in app.agent.utils for backwards compatibility."""
+    return clean_reply_formatting(reply)
 
 
 class SingleAgent:
@@ -79,19 +48,13 @@ class SingleAgent:
         """Process one conversational turn using the IntentPlan pipeline."""
         logger.info("agent_processing_message", extra={"event": "process_message"})
 
-        # If user greets or explicitly requests resetting session or starting fresh
-        msg_clean = user_message.strip().lower()
-        greetings = {"hi", "hello", "hey", "ہیلو", "سلام", "ہیلو!", "سلام!", "good morning", "good evening", "good day", "as-salamu alaykum", "assalam o alaikum"}
-        is_greeting = msg_clean in greetings or any(msg_clean.startswith(g) for g in ["hi ", "hello ", "hey ", "ہیلو ", "سلام "])
-
-        if is_greeting or msg_clean in ["reset", "reset session", "start fresh", "start over", "new chat", "clear session", "restart", "نئی سیشن", "نیا سیشن", "شروع سے", "دوبارہ شروع کرو"]:
+        # Check if user greets or explicitly requests resetting session
+        is_greeting, is_reset = is_greeting_or_reset_message(user_message)
+        if is_greeting or is_reset:
             state.reset()
             state.current_intent = "greeting"
             state.message_history.append({"role": "user", "content": user_message})
-            if any(ch in user_message for ch in ["اردو", "سلام", "ہیلو", "نیا", "شروع"]):
-                reply = f"ہیلو! {context.store_name} میں خوش آمدید۔ بطور آپ کے پرسنل سیلز کنسیئرج، آج آپ اپنی شخصیت کو نکھارنے کے لیے کون سا لباس یا اسٹائل پہننا چاہتے ہیں؟"
-            else:
-                reply = f"Hello! Welcome to {context.store_name}. As your personal AI Sales Concierge, what style or outfit are you looking to wear today to elevate your personality and boost your confidence?"
+            reply = build_concierge_greeting(context.store_name, user_message)
             return self.reply(reply, state)
 
         # 1. Append user message to history
@@ -149,7 +112,7 @@ class SingleAgent:
 
     def reply(self, reply_text: str, state: ConversationState) -> str:
         """Finalize assistant turn reply, synchronize product cards with reply prose, and record message history."""
-        cleaned_text = _clean_reply_formatting(reply_text)
+        cleaned_text = clean_reply_formatting(reply_text)
         state.sync_displayed_products_with_reply(cleaned_text)
         state.message_history.append({"role": "assistant", "content": cleaned_text})
         return cleaned_text
@@ -168,11 +131,9 @@ class SingleAgent:
         )
         return True
 
-
     async def _execute_intent(self, intent: StructuredIntent, state: ConversationState, context: StoreContext) -> str:
         """Map StructuredIntent to tool calls via TOOL_REGISTRY and execute them."""
 
-        # Non-tool intents handled directly
         if intent.intent == "general_chat":
             return "General chat intent detected. No tool executed."
 
@@ -186,10 +147,8 @@ class SingleAgent:
             state.product_cards.clear()
             return "Preferences cleared."
 
-        # Route "remove_cart" with no specific item to "clear_cart"
         tool_name = intent.intent
         if tool_name == "remove_cart" and intent.selected_product_index is None:
-            # No specific item → user wants to empty the entire cart
             tool_name = "clear_cart"
 
         spec = TOOL_REGISTRY.get(tool_name)
@@ -197,85 +156,16 @@ class SingleAgent:
             return f"No tool mapping for intent {intent.intent}"
 
         args = self._args_from_intent(intent, state)
-
-        try:
-            validation_error = await ParameterRequirementsChecker.check(spec, args, state)
-            if validation_error:
-                return validation_error
-
-            payload = spec.payload_model(**args)
-            result = await spec.handler(state, payload)
-            # Ensure result is a string for synthesis
-            return result if isinstance(result, str) else str(result)
-
-        except Exception as exc:
-            logger.error(f"Error executing {tool_name}: {exc}")
-            return f"Error executing {tool_name}: {str(exc)}"
+        return await execute_validated_tool(spec, args, state)
 
     def _args_from_intent(self, intent: StructuredIntent, state: ConversationState) -> dict:
         """Extract arguments from the intent for tool execution."""
-        args = {}
-        filters = intent.search_overrides or intent.filters
-        if filters:
-            if filters.categories:
-                args["categories"] = filters.categories
-                args["category_name"] = filters.categories[0]
-            if filters.product_types: args["product_types"] = filters.product_types
-            if filters.occasions: args["occasions"] = filters.occasions
-            if filters.colors:
-                args["colors"] = filters.colors
-                args["color"] = filters.colors[0]
-            if filters.excluded_colors: args["excluded_colors"] = filters.excluded_colors
-            if filters.sizes:
-                args["size_mapping"] = filters.sizes
-                if isinstance(filters.sizes, dict) and filters.sizes:
-                    args["size"] = next(iter(filters.sizes.values()))
-                elif isinstance(filters.sizes, list) and filters.sizes:
-                    args["size"] = str(filters.sizes[0])
-                elif isinstance(filters.sizes, str):
-                    args["size"] = filters.sizes
-            if filters.materials: args["materials"] = filters.materials
-            if filters.fits: args["fits"] = filters.fits
-            if filters.budget:
-                if getattr(filters.budget, 'minimum', None) is not None: args["minimum_price"] = filters.budget.minimum
-                if getattr(filters.budget, 'maximum', None) is not None: args["maximum_price"] = filters.budget.maximum
-            if filters.branch: args["branch_code"] = filters.branch
-            if filters.specific_article: args["article_code"] = filters.specific_article
-            
-        if intent.search_query:
-            args["query_text"] = intent.search_query
-            
-        if intent.selected_product_index is not None:
-            args["selected_product_index"] = intent.selected_product_index
-            if 1 <= intent.selected_product_index <= len(state.displayed_products):
-                args["product_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
-                args["item_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
-                
-        if intent.quantity:
-            args["quantity"] = intent.quantity
-            
-        if intent.delivery_info:
-            if intent.delivery_info.customer_name: args["customer_name"] = intent.delivery_info.customer_name
-            if intent.delivery_info.phone: args["phone"] = intent.delivery_info.phone
-            if intent.delivery_info.delivery_address: args["delivery_address"] = intent.delivery_info.delivery_address
-            if intent.delivery_info.city: args["city"] = intent.delivery_info.city
-            if intent.delivery_info.delivery_notes: args["delivery_notes"] = intent.delivery_info.delivery_notes
-            
-        return args
+        return args_from_intent(intent, state)
 
     async def _synthesize_reply(self, step_results: list[str], state: ConversationState, context: StoreContext) -> str:
         """Synthesize a natural language reply from the step results."""
         results_str = "\n\n---\n\n".join(step_results)
-        
-        store_ctx_str = (
-            f"Brand/Store Context:\n"
-            f"- Brand Name: {context.store_name}\n"
-            f"- Available Categories: {context.categories}\n"
-            f"- Available Product Types: {context.product_types}\n"
-            f"- Available Occasions: {context.occasions}\n"
-            f"- Available Colors: {context.colors}\n"
-            f"- Available Sizes: {context.sizes}\n"
-        )
+        store_ctx_str = format_store_context_str(context)
 
         system_content = (
             f"{SYSTEM_PROMPT_VOICE}\n\n"
@@ -290,13 +180,11 @@ class SingleAgent:
             "If the customer wrote in English OR Roman Urdu (e.g. 'mujhe t-shirts dikhao', 'pehla add karo'), reply strictly in professional English.\n\n"
             "Synthesize a conversational reply for the customer based on these results."
         )
-        
+
         messages = [LLMMessage(role="system", content=system_content)]
-        
-        # Add last few messages for context
         for msg in state.message_history[-4:]:
             messages.append(LLMMessage(**msg))
-            
+
         try:
             content, _ = await self._llm.generate_with_tools(messages, tools=[])
             if content:
@@ -331,30 +219,20 @@ class SingleAgent:
 
         return self.reply(reply, state)
 
-
     async def _fallback_llm_tool_turn(self, state: ConversationState, context: StoreContext) -> str:
         """Legacy tool loop used as fallback if intent extraction fails."""
-        store_ctx_str = (
-            f"Brand/Store Context:\n"
-            f"- Brand Name: {context.store_name}\n"
-            f"- Available Categories: {context.categories}\n"
-            f"- Available Product Types: {context.product_types}\n"
-            f"- Available Occasions: {context.occasions}\n"
-            f"- Available Colors: {context.colors}\n"
-            f"- Available Sizes: {context.sizes}\n"
-        )
-        # 2. Build system context
+        store_ctx_str = format_store_context_str(context)
         system_content = (
             f"{SYSTEM_PROMPT_ROUTING}\n\n"
             f"{SYSTEM_PROMPT_VOICE}\n\n"
             f"{store_ctx_str}\n\n"
             f"Current State:\n{state.model_dump_json(exclude_defaults=True)}\n\n"
         )
-        
+
         messages = [LLMMessage(role="system", content=system_content)]
         for msg in state.message_history:
             messages.append(LLMMessage(**msg))
-            
+
         max_turns = 5
         last_content = ""
         while max_turns > 0:
@@ -362,16 +240,16 @@ class SingleAgent:
             content, tool_calls = await self._llm.generate_with_tools(messages, tools=AGENT_TOOLS)
             if content:
                 last_content = content
-                
+
             if not tool_calls:
                 if content:
                     return self.reply(content, state)
                 return self.reply(last_content or "I have processed your request.", state)
-                
+
             assistant_msg = {"role": "assistant", "content": content, "tool_calls": tool_calls}
             state.message_history.append(assistant_msg)
             messages.append(LLMMessage(**assistant_msg))
-            
+
             for tc in tool_calls:
                 tc_id = tc.get("id")
                 func_name = tc.get("function", {}).get("name")
@@ -380,23 +258,13 @@ class SingleAgent:
                     args = json.loads(args_str)
                 except Exception:
                     args = {}
-                    
+
                 spec = TOOL_REGISTRY.get(func_name)
-                
                 if not spec:
                     result_str = f"Unknown tool: {func_name}"
                 else:
-                    validation_error = await ParameterRequirementsChecker.check(spec, args, state)
-                    if validation_error:
-                        result_str = validation_error
-                    else:
-                        try:
-                            payload = spec.payload_model(**args)
-                            res = await spec.handler(state, payload)
-                            result_str = res if isinstance(res, str) else str(res)
-                        except Exception as e:
-                            result_str = f"Error executing {func_name}: {str(e)}"
-                
+                    result_str = await execute_validated_tool(spec, args, state)
+
                 tool_msg = {"role": "tool", "tool_call_id": tc_id, "content": result_str}
                 state.message_history.append(tool_msg)
                 messages.append(LLMMessage(**tool_msg))
