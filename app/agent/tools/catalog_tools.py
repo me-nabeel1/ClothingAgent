@@ -200,8 +200,17 @@ class CatalogToolsMixin:
                 target_product_ids.append(state.displayed_products[selected_index - 1].product_id)
 
         query_str = getattr(payload, "search_query", None) if payload else None
+        if not query_str and hasattr(payload, "product_name") and getattr(payload, "product_name", None):
+            query_str = getattr(payload, "product_name")
         if not query_str and hasattr(payload, "query") and getattr(payload, "query", None):
             query_str = getattr(payload, "query")
+
+        if not query_str and state.message_history:
+            last_msg = next((m.get("content", "") for m in reversed(state.message_history) if m.get("role") == "user"), "")
+            if last_msg:
+                cleaned_msg = re.sub(r"^(tell me more about|show details for|details of|details for|what about|tell about)\s+", "", last_msg, flags=re.IGNORECASE).strip()
+                if cleaned_msg:
+                    query_str = cleaned_msg
 
         if not target_product_ids and query_str:
             search_res = await self._client.search_products(ProductSearchRequest(query_text=query_str, in_stock_only=False, limit=5))

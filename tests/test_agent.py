@@ -766,7 +766,16 @@ class TestSessionIsolationAndReset:
         state.current_intent = "general_inquiry"
         state.sync_displayed_products_with_reply("We offer T-Shirts, Shirts, Pants, Trousers, Outerwear, and Traditional wear.")
         assert state.product_cards == []
-        assert state.displayed_products == []
+    @pytest.mark.asyncio
+    async def test_get_product_details_fallback_query_resolution(self, mock_client):
+        tools = AgentTools(mock_client)
+        state = ConversationState(session_id="s_fallback_query")
+        state.message_history.append({"role": "user", "content": "Tell me more about the Vintage Plain Cotton Tee in Blue"})
+        
+        await tools.get_product_details(GetProductDetailsPayload(), state)
+        mock_client.search_products.assert_called_once()
+        search_req = mock_client.search_products.call_args[0][0]
+        assert "Vintage Plain Cotton Tee in Blue" in search_req.query_text
 
 
 

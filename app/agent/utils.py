@@ -181,6 +181,9 @@ def args_from_intent(intent: StructuredIntent, state: ConversationState) -> dict
         
     if intent.search_query:
         args["query_text"] = intent.search_query
+        args["search_query"] = intent.search_query
+        args["query"] = intent.search_query
+        args["product_name"] = intent.search_query
         
     if intent.selected_product_index is not None:
         args["selected_product_index"] = intent.selected_product_index

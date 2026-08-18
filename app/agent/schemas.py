@@ -28,6 +28,10 @@ class GetProductDetailsPayload(BaseModel):
     """Get rich details for a specific product."""
     product_id: Optional[int] = Field(None, description="The ID of the product if known")
     selected_product_index: Optional[int] = Field(None, description="1-based index of product if user is referring to a recently displayed product list")
+    product_name: Optional[str] = Field(None, description="The name of the product if mentioned by the user")
+    search_query: Optional[str] = Field(None, description="Free text query describing the product")
+    colors: Optional[list[str]] = Field(None, description="Colors mentioned by user")
+    sizes: Optional[Any] = Field(None, description="Sizes mentioned by user")
 
 class AddCartItemPayload(BaseModel):
     """Add a specific item variant to the cart. DO NOT call this tool unless the user has explicitly specified BOTH color and size. If color or size is missing, ask the user to clarify their color and size preference first or call get_product_details."""
