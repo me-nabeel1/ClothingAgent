@@ -1,5 +1,6 @@
 """Unified environment configuration for the clothing agent."""
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -26,8 +27,22 @@ class AgentConfig(BaseSettings):
     log_max_bytes: int = Field(default=5_000_000, ge=100_000)
     log_backup_count: int = Field(default=5, ge=1, le=20)
 
-    clothing_app_base_url: str = "http://127.0.0.1:8000/catalog"
+    clothing_app_base_url: str = "http://127.0.0.1:7073"
     clothing_app_timeout_seconds: float = Field(default=12.0, gt=0, le=120)
+
+    def model_post_init(self, __context) -> None:
+        """Resolve clothing_app_base_url to active server port if not explicitly set."""
+        env_base = os.getenv("CLOTHING_AGENT_CLOTHING_APP_BASE_URL")
+        if env_base:
+            # Strip trailing /catalog or /api/v1 if present in legacy env var
+            clean_base = env_base.rstrip("/")
+            for prefix in ("/catalog", "/api/v1"):
+                if clean_base.endswith(prefix):
+                    clean_base = clean_base[:-len(prefix)]
+            self.clothing_app_base_url = clean_base or "http://127.0.0.1:7073"
+        else:
+            port = os.getenv("PORT") or os.getenv("APP_PORT") or "7073"
+            self.clothing_app_base_url = f"http://127.0.0.1:{port}"
 
     # Groq exposes an OpenAI-compatible chat-completions API, so the agent only
     # needs these three provider settings.
