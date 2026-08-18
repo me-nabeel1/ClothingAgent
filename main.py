@@ -66,6 +66,12 @@ app.include_router(orders_router, prefix=config.api_prefix)     # /api/v1/orders
 app.include_router(inventory_router, prefix=config.api_prefix)  # /api/v1/inventory (Stock & Branches)
 app.include_router(promotions_router, prefix=config.api_prefix) # /api/v1/promotions (Discounts & Offers)
 
+# Backwards compatibility fallback routes (Hidden from Swagger UI)
+from app.catalog.api import get_menu as catalog_get_menu
+app.add_api_route("/menu", catalog_get_menu, methods=["GET"], include_in_schema=False)
+app.add_api_route("/catalog/menu", catalog_get_menu, methods=["GET"], include_in_schema=False)
+app.add_api_route("/catalog/api/v1/menu", catalog_get_menu, methods=["GET"], include_in_schema=False)
+
 # ------------------------------------------------------------------
 # Static Assets (Product Images)
 # ------------------------------------------------------------------

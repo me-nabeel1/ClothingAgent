@@ -263,12 +263,12 @@ class CatalogService:
         )
         groups: dict[str, list] = {}
         for product in wide.products:
-            cat = product.category
+            cat = product.category or "General"
             if cat not in groups:
                 groups[cat] = []
             if len(groups[cat]) < 10:
                 groups[cat].append(product)
-                
+
         preferred_order = [
             "T-Shirts", "Polo Shirts", "Cotton Shirts", "Formal Shirts",
             "Jeans", "Trousers", "Cotton Pants", "Cargo Pants",
@@ -277,12 +277,12 @@ class CatalogService:
         menu = []
         seen = set()
         for cat_name in preferred_order:
-            if cat_name in groups:
-                menu.append({"category_name": cat_name, "products": groups[cat_name]})
+            if cat_name in groups and groups[cat_name]:
+                menu.append({"category_name": str(cat_name), "products": groups[cat_name]})
                 seen.add(cat_name)
         for cat_name, products in groups.items():
-            if cat_name not in seen:
-                menu.append({"category_name": cat_name, "products": products})
+            if cat_name not in seen and products:
+                menu.append({"category_name": str(cat_name), "products": products})
         return menu
 
     async def get_product(self, product_id: int) -> ProductDetails:
