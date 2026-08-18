@@ -18,6 +18,9 @@ from app.clients.clothing_app.schemas import AddCartItemRequest, UpdateCartItemR
 logger = logging.getLogger(__name__)
 
 
+from app.agent.tools.helpers import normalize_size_label
+
+
 class CartToolsMixin:
     """Cart management capabilities."""
 
@@ -33,11 +36,16 @@ class CartToolsMixin:
             state.cart.items = []
 
     def _get_matching_variants(self, variants: list[Any], color: Optional[str], size: Optional[str]) -> list[Any]:
+        norm_color = color.strip().lower() if color else None
+        norm_size = normalize_size_label(size) if size else None
+
         matching = []
         for v in variants:
-            if color and v.color.lower() != color.lower():
+            v_color = (v.color or "").strip().lower()
+            v_size = normalize_size_label(v.size)
+            if norm_color and v_color != norm_color:
                 continue
-            if size and v.size.lower() != size.lower():
+            if norm_size and v_size != norm_size:
                 continue
             matching.append(v)
         return matching
@@ -83,8 +91,17 @@ class CartToolsMixin:
         if not in_stock_variants:
             in_stock_variants = details.product.variants
 
-        if not payload.color or not payload.size:
-            logger.info("add_cart_item_missing_color_or_size", extra={"color": payload.color, "size": payload.size, "product_id": product_id})
+        req_color = payload.color
+        req_size = payload.size
+
+        if not req_color and state.preferred_colors:
+            req_color = state.preferred_colors[0]
+
+        if not req_size and state.size_preferences:
+            req_size = list(state.size_preferences.values())[0]
+
+        if not req_color or not req_size:
+            logger.info("add_cart_item_missing_color_or_size", extra={"color": req_color, "size": req_size, "product_id": product_id})
             colors = sorted(list(set(v.color for v in details.product.variants if v.is_available)))
             sizes = sorted(list(set(v.size for v in details.product.variants if v.is_available)))
             if state:
@@ -97,10 +114,10 @@ class CartToolsMixin:
                 "INSTRUCTION: Politely and professionally ask the user which color and size they prefer from the available options before adding to cart."
             )
 
-        matching_variants = self._get_matching_variants(details.product.variants, payload.color, payload.size)
+        matching_variants = self._get_matching_variants(details.product.variants, req_color, req_size)
             
         if not matching_variants:
-            return f"Variant not found for color {payload.color} and size {payload.size}."
+            return f"Variant not found for color {req_color} and size {req_size}."
             
         variant = matching_variants[0]
         variant_id = variant.variant_id

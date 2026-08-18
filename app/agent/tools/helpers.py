@@ -67,3 +67,16 @@ def parse_categories_from_input(categories: Any = None, search_query: Optional[s
             if norm and norm not in normalized:
                 normalized.append(norm)
     return normalized
+def normalize_size_label(raw: Any) -> str:
+    if not raw:
+        return ""
+    val = str(raw).strip().lower()
+    mapping = {
+        "s": "S", "small": "S", "اسمال": "S", "چھوٹا": "S",
+        "m": "M", "medium": "M", "میڈیم": "M", "درمیانہ": "M",
+        "l": "L", "large": "L", "لارج": "L", "بڑا": "L",
+        "xl": "XL", "xlarge": "XL", "extra large": "XL", "x-large": "XL", "ایکسٹرا لارج": "XL",
+        "xxl": "XXL", "xxlarge": "XXL", "double xl": "XXL", "2xl": "XXL", "ڈبل ایکسٹرا لارج": "XXL",
+        "xxxl": "XXXL", "3xl": "XXXL", "triple xl": "XXXL"
+    }
+    return mapping.get(val, str(raw).strip().upper())
