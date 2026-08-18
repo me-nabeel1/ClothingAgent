@@ -8,6 +8,9 @@ import os
 import random
 from urllib.parse import urlsplit
 import asyncpg
+from dotenv import load_dotenv
+
+load_dotenv()
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -61,7 +64,7 @@ async def ensure_database_exists():
 async def seed_db(db: AsyncSession):
     config = get_config()
     print(f"Target Database URL: {config.database_url}")
-
+    print("Purging legacy database tables from PostgreSQL schema 'clothing_store'...")
     # 0. Automatically create schema and all tables if they don't exist yet
     engine = get_engine()
     async with engine.begin() as conn:
@@ -78,8 +81,7 @@ async def seed_db(db: AsyncSession):
     ]
     for table in tables:
         await db.execute(text(f"TRUNCATE TABLE clothing_store.{table} CASCADE"))
-    await db.commit()
-    print("All legacy tables successfully truncated and committed.")
+    print("Legacy tables purged successfully. Seeding 120 category-pure products with Pexels CDN URLs...")
     
     now = datetime.now(timezone.utc)
     
