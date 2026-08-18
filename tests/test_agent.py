@@ -753,5 +753,20 @@ class TestSessionIsolationAndReset:
         assert res.state.cart.item_count == 3
         assert res.state.cart.subtotal == 7500.0
 
+    @pytest.mark.asyncio
+    async def test_general_questions_suppress_product_cards(self):
+        from app.agent.state import ConversationState, ProductCard
+        from app.clients.clothing_app.schemas import ProductView
+        from decimal import Decimal
+        state = ConversationState(session_id="test_cards_suppression")
+        p = ProductView(product_id=1, article_code="ART1", product_name="Legacy Shalwar Kameez", category="Traditional", product_type="kurta", gender="MEN", brand="Northstar", base_price=Decimal("3000"), final_price=Decimal("3000"))
+        state.product_cards = [ProductCard(product=p)]
+        state.displayed_products = [p]
+        
+        state.current_intent = "general_inquiry"
+        state.sync_displayed_products_with_reply("We offer T-Shirts, Shirts, Pants, Trousers, Outerwear, and Traditional wear.")
+        assert state.product_cards == []
+        assert state.displayed_products == []
+
 
 

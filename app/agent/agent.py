@@ -49,6 +49,9 @@ class SingleAgent:
         """Process one conversational turn using the IntentPlan pipeline."""
         logger.info("agent_processing_message", extra={"event": "process_message"})
 
+        # Always clear transient UI cards at the start of every turn so stale cards never carry over
+        state.clear_cards()
+
         # Check if user greets or explicitly requests resetting session
         is_greeting, is_reset = is_greeting_or_reset_message(user_message)
         if is_greeting or is_reset:
@@ -115,6 +118,11 @@ class SingleAgent:
         """Finalize assistant turn reply, synchronize product cards with reply prose, and record message history."""
         cleaned_text = clean_reply_formatting(reply_text)
 
+        # General chat, greetings, store overviews, and general inquiries MUST NEVER show product cards
+        is_general_turn = state.current_intent in [
+            "general_chat", "greeting", "general_inquiry", "store_overview", "faq", "general", "reset_session", "clear_preferences"
+        ]
+
         # Check if reply is a broad category clarification follow-up question
         is_clarification_reply = any(
             phrase in cleaned_text.lower()
@@ -123,7 +131,7 @@ class SingleAgent:
                 "کس قسم کی", "کون سا اسٹائل", "کون سی شرٹ", "کون سا انداز", "کون سی پینٹ", "کون سے کپڑے"
             ]
         )
-        if is_clarification_reply:
+        if is_general_turn or is_clarification_reply:
             state.displayed_products.clear()
             state.product_cards.clear()
         else:
