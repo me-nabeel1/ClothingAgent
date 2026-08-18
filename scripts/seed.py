@@ -12,12 +12,18 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from app.database import get_db
+from app.database import get_db, Base, get_engine
 from app.catalog.models import Branch, Category, Product, ProductVariant, Color, Size, ProductImage
 from app.inventory.models import BranchInventory
 from app.promotions.models import Offer
 
 async def seed_db(db: AsyncSession):
+    # 0. Automatically create schema and tables if they don't exist yet
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS clothing_store;"))
+        await conn.run_sync(Base.metadata.create_all)
+
     # Set fixed seed for deterministic product generation so the demo is stable
     random.seed(42)
 
