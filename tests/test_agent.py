@@ -737,5 +737,21 @@ class TestSessionIsolationAndReset:
         assert res.state.categories == []
         assert res.state.cart.item_count == 0
 
+    @pytest.mark.asyncio
+    async def test_new_chat_session_retains_cart(self):
+        from app.core.chat import get_or_create_session, reset_session_endpoint, SessionResetRequest
+        from uuid import uuid4
+        session_id = f"s_cart_retain_{uuid4()}"
+        state = get_or_create_session(session_id)
+        cid = uuid4()
+        state.cart.cart_id = cid
+        state.cart.item_count = 3
+        state.cart.subtotal = 7500.0
+
+        res = await reset_session_endpoint(SessionResetRequest(session_id=session_id, keep_cart=True))
+        assert res.state.cart.cart_id == cid
+        assert res.state.cart.item_count == 3
+        assert res.state.cart.subtotal == 7500.0
+
 
 

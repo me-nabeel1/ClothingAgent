@@ -435,8 +435,9 @@ class ConversationState(BaseModel):
         self.checkout_card = None
         self.order_card = None
 
-    def reset(self) -> None:
-        """Completely flush all session states, preferences, cart, delivery info, product cards, and message history for a 100% fresh session."""
+    def reset(self, keep_cart: bool = False) -> None:
+        """Flush session preferences, stage, and message history while retaining active cart items if keep_cart=True."""
+        existing_cart = self.cart if keep_cart else CartContext()
         self.conversation_stage = "greeting"
         self.current_intent = None
         self.message_history.clear()
@@ -457,7 +458,7 @@ class ConversationState(BaseModel):
         self.selected_product_id = None
         self.requested_unavailable_products.clear()
 
-        self.cart = CartContext()
+        self.cart = existing_cart
         self.delivery = DeliveryContext()
         self.order_confirmed = False
 
