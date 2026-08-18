@@ -2,6 +2,7 @@
 
 import logging
 import json
+import re
 from typing import Optional, Any
 
 from app.agent.state import ConversationState
@@ -130,6 +131,11 @@ class SingleAgent:
     def reply(self, reply_text: str, state: ConversationState) -> str:
         """Finalize assistant turn reply, synchronize product cards with reply prose, and record message history."""
         cleaned_text = clean_reply_formatting(reply_text)
+
+        # Deterministic programmatic guard: Strip any raw JSON objects or code blocks from reply prose
+        cleaned_text = re.sub(r'```(?:json)?\s*\{[\s\S]*?\}\s*```', '', cleaned_text)
+        cleaned_text = re.sub(r'\{\s*"[a-zA-Z0-9_]+"\s*:[\s\S]*?\}', '', cleaned_text)
+        cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text).strip()
 
         # General chat, greetings, store overviews, and general inquiries MUST NEVER show product cards
         is_general_turn = state.current_intent in [
@@ -316,7 +322,8 @@ class SingleAgent:
                     return self.reply(content, state)
                 return self.reply(last_content or "I have processed your request.", state)
 
-            assistant_msg = {"role": "assistant", "content": content, "tool_calls": tool_calls}
+            cleaned_content = clean_reply_formatting(content) if content else None
+            assistant_msg = {"role": "assistant", "content": cleaned_content, "tool_calls": tool_calls}
             state.message_history.append(assistant_msg)
             messages.append(LLMMessage(**assistant_msg))
 
