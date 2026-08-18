@@ -777,5 +777,22 @@ class TestSessionIsolationAndReset:
         search_req = mock_client.search_products.call_args[0][0]
         assert "Vintage Plain Cotton Tee in Blue" in search_req.query_text
 
+    def test_clean_reply_formatting_strips_json_payloads(self):
+        from app.agent.utils import clean_reply_formatting
+        raw_text = (
+            'Great choice! I\'ve added the Vintage Plain Cotton Tee in Blue, size Large to your bag.\n\n'
+            '{\n'
+            '  "action": "add_to_cart",\n'
+            '  "product_name": "Vintage Plain Cotton Tee",\n'
+            '  "color": "Blue",\n'
+            '  "size": "L",\n'
+            '  "quantity": 1\n'
+            '}'
+        )
+        cleaned = clean_reply_formatting(raw_text)
+        assert 'action' not in cleaned
+        assert '"product_name"' not in cleaned
+        assert "Great choice!" in cleaned
+
 
 
