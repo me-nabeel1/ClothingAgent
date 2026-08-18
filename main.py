@@ -34,6 +34,25 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     """Manage application startup and shutdown resources."""
     logger.info("unified_service_started", extra={"event": "unified_service_started"})
+
+    # Automatically ensure schema and all database tables exist on FastAPI startup
+    try:
+        from sqlalchemy import text
+        from app.database import Base, get_engine
+        from app.catalog.models import Branch, Category, Product, ProductVariant, Color, Size, ProductImage
+        from app.inventory.models import BranchInventory
+        from app.promotions.models import Offer
+        from app.cart.models import Cart, CartItem
+        from app.orders.models import Order, OrderItem
+
+        engine = get_engine()
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS clothing_store;"))
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("database_tables_ensured", extra={"event": "database_tables_ensured"})
+    except Exception as exc:
+        logger.warning(f"Database schema startup initialization skipped: {exc}")
+
     try:
         yield
     finally:

@@ -18,6 +18,8 @@ from app.config import get_config
 from app.catalog.models import Branch, Category, Product, ProductVariant, Color, Size, ProductImage
 from app.inventory.models import BranchInventory
 from app.promotions.models import Offer
+from app.cart.models import Cart, CartItem
+from app.orders.models import Order, OrderItem
 
 
 async def ensure_database_exists():
@@ -57,7 +59,7 @@ async def ensure_database_exists():
 
 
 async def seed_db(db: AsyncSession):
-    # 0. Automatically create schema and tables if they don't exist yet
+    # 0. Automatically create schema and all tables if they don't exist yet
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS clothing_store;"))
@@ -67,8 +69,9 @@ async def seed_db(db: AsyncSession):
     random.seed(42)
 
     tables = [
-        "branches", "categories", "colors", "sizes", "offers",
-        "products", "product_variants", "branch_inventory", "product_images"
+        "cart_items", "carts", "order_items", "orders",
+        "branch_inventory", "product_images", "product_variants", "products",
+        "branches", "categories", "colors", "sizes", "offers"
     ]
     for table in tables:
         await db.execute(text(f"TRUNCATE TABLE clothing_store.{table} CASCADE"))
