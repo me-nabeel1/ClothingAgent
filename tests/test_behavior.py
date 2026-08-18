@@ -206,3 +206,12 @@ class TestBehavioralScenarios:
         req = ProductSearchRequest(category="T-Shirts")
         assert req.categories == ["T-Shirts"]
 
+    @pytest.mark.asyncio
+    async def test_formal_branch_inquiry_response(self, mock_client, store_context, mock_extractor):
+        mock_llm = AsyncMock()
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
+        state = ConversationState(session_id="s_branch")
+        
+        reply = await agent.process_message("Do you have this at Gulberg branch?", state, store_context)
+        assert "online platform" in reply.lower() or "doorstep" in reply.lower() or "nearest northstar branch" in reply.lower()
+

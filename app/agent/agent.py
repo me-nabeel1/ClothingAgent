@@ -61,6 +61,19 @@ class SingleAgent:
             reply = build_concierge_greeting(context.store_name, user_message)
             return self.reply(reply, state)
 
+        # Handle explicit branch inquiries professionally
+        user_lower = user_message.lower()
+        branch_terms = ["gulberg", "f-7", "f7", "mall road", "which branch", "in branch", "at branch", "physical outlet", "physical store", "store location"]
+        if any(term in user_lower for term in branch_terms) and not any(term in user_lower for term in ["buy", "add to cart", "checkout"]):
+            state.current_intent = "branch_inquiry"
+            state.message_history.append({"role": "user", "content": user_message})
+            reply = (
+                "Northstar Menswear operates as an online platform delivering orders directly to your doorstep nationwide. "
+                "All in-stock items across our store network are available for online purchase. "
+                "If you prefer to visit or purchase directly from a physical retail store, we invite you to visit your nearest Northstar branch location."
+            )
+            return self.reply(reply, state)
+
         # 1. Append user message to history
         state.message_history.append({"role": "user", "content": user_message})
 

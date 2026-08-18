@@ -90,7 +90,7 @@ class CatalogToolsMixin:
             seasons=state.seasons,
             minimum_price=budget_min,
             maximum_price=budget_max,
-            branch_code=state.branch_preference,
+            branch_code=None,  # Always pool stock across all branches for online shopping
             in_stock_only=True,
             limit=min(limit, 20),
             article_code=getattr(payload, "specific_article", None),
@@ -128,7 +128,7 @@ class CatalogToolsMixin:
                         return False
 
                     if req_clean in ("jean", "denim"):
-                        if any(re.search(r'\b(jeans?|denim)\b', f, re.IGNORECASE) for f in fields):
+                        if "jean" in combined_clean or "denim" in combined_clean:
                             return True
                         return False
 
@@ -203,6 +203,9 @@ class CatalogToolsMixin:
         detailed_products = []
         lines = []
 
+        req_color = state.preferred_colors[0] if state.preferred_colors else None
+        req_size = list(state.size_preferences.values())[0] if state.size_preferences else None
+
         for pid in target_product_ids:
             logger.info(
                 "agent_tool_get_product_details",
@@ -214,11 +217,53 @@ class CatalogToolsMixin:
                 detailed_products.append(p)
                 price_int = int(float(p.final_price)) if p.final_price is not None else 0
                 line_entry = [f"Details for {p.product_name}:", f"Price: {price_int} rupees.", f"Description: {p.description or 'N/A'}."]
+                
                 if p.variants:
-                    colors = sorted(list(set(v.color for v in p.variants if v.is_available)))
-                    sizes = sorted(list(set(v.size for v in p.variants if v.is_available)))
-                    line_entry.append(f"Available Colors: {', '.join(colors) if colors else 'None'}")
-                    line_entry.append(f"Available Sizes: {', '.join(sizes) if sizes else 'None'}")
+                    all_avail = [v for v in p.variants if v.is_available]
+                    all_colors = sorted(list(set(v.color for v in all_avail)))
+                    all_sizes = sorted(list(set(v.size for v in all_avail)))
+
+                    exact_matches = [
+                        v for v in all_avail
+                        if (not req_color or v.color.lower() == req_color.lower())
+                        and (not req_size or str(v.size).lower() == str(req_size).lower())
+                    ]
+
+                    if exact_matches:
+                        line_entry.append("Status: Available for online ordering.")
+                        if req_color and req_size:
+                            line_entry.append(f"Requested Variant ({req_color} size {req_size}): IN STOCK for nationwide delivery.")
+                        line_entry.append(f"Available Colors: {', '.join(all_colors) if all_colors else 'None'}")
+                        line_entry.append(f"Available Sizes: {', '.join(all_sizes) if all_sizes else 'None'}")
+                    else:
+                        same_size_avail = [
+                            v for v in all_avail
+                            if req_size and str(v.size).lower() == str(req_size).lower()
+                        ]
+                        same_size_colors = sorted(list(set(v.color for v in same_size_avail)))
+
+                        same_color_avail = [
+                            v for v in all_avail
+                            if req_color and v.color.lower() == req_color.lower()
+                        ]
+                        same_color_sizes = sorted(list(set(v.size for v in same_color_avail)))
+
+                        if req_color and req_size and same_size_colors:
+                            line_entry.append(
+                                f"Smart Variant Recommendation: The {req_color} color is currently out of stock in size {req_size}. "
+                                f"However, we do have size {req_size} available in {', '.join(same_size_colors)}. "
+                                f"Would you like to select one of these available colors?"
+                            )
+                        elif req_color and req_size and same_color_sizes:
+                            line_entry.append(
+                                f"Smart Variant Recommendation: Size {req_size} is currently out of stock in {req_color}. "
+                                f"However, we do have {req_color} available in sizes {', '.join(same_color_sizes)}. "
+                                f"Would you like to select one of these available sizes?"
+                            )
+                        else:
+                            line_entry.append(f"Available Colors: {', '.join(all_colors) if all_colors else 'None'}")
+                            line_entry.append(f"Available Sizes: {', '.join(all_sizes) if all_sizes else 'None'}")
+
                 lines.append("\n".join(line_entry))
 
         if detailed_products:
