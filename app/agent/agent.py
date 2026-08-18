@@ -114,7 +114,21 @@ class SingleAgent:
     def reply(self, reply_text: str, state: ConversationState) -> str:
         """Finalize assistant turn reply, synchronize product cards with reply prose, and record message history."""
         cleaned_text = clean_reply_formatting(reply_text)
-        state.sync_displayed_products_with_reply(cleaned_text)
+
+        # Check if reply is a broad category clarification follow-up question
+        is_clarification_reply = any(
+            phrase in cleaned_text.lower()
+            for phrase in [
+                "what kind of", "what style of", "which type of", "which style", "what type",
+                "کس قسم کی", "کون سا اسٹائل", "کون سی شرٹ", "کون سا انداز", "کون سی پینٹ", "کون سے کپڑے"
+            ]
+        )
+        if is_clarification_reply:
+            state.displayed_products.clear()
+            state.product_cards.clear()
+        else:
+            state.sync_displayed_products_with_reply(cleaned_text)
+
         state.message_history.append({"role": "assistant", "content": cleaned_text})
         return cleaned_text
 

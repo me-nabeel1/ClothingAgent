@@ -43,13 +43,24 @@ def test_language_detection_and_tts_formatting():
     assert detect_input_language("show me black t-shirts under 2000") == "en"
 
     # TTS Markdown formatting cleanup
-    raw_markdown = "**Option 1:** *Oxford Shirt* - 2500.00 Rs."
+    raw_markdown = "1️⃣ **Option 1:** [1] *Oxford Shirt* - 2500.00 Rs."
     cleaned = clean_reply_formatting(raw_markdown)
     assert "**" not in cleaned
     assert "*" not in cleaned
     assert ".00" not in cleaned
     assert "Rs." not in cleaned
+    assert "1️⃣" not in cleaned
+    assert "[1]" not in cleaned
+    assert "1." in cleaned
     assert "rupees" in cleaned
+
+    # Urdu TTS formatting
+    raw_urdu = "2️⃣ **آپشن 2:** 3100.00 PKR"
+    cleaned_urdu = clean_reply_formatting(raw_urdu)
+    assert "PKR" not in cleaned_urdu
+    assert "2️⃣" not in cleaned_urdu
+    assert "2." in cleaned_urdu
+    assert "روپے" in cleaned_urdu
 
 
 def test_category_filtering_purity():

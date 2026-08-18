@@ -40,7 +40,7 @@ def detect_input_language(user_message: str) -> str:
 
 
 def clean_reply_formatting(reply: str) -> str:
-    """Post-processing filter to format replies for clean Text-to-Speech (TTS) voice playback and strip forbidden currency/markdown symbols."""
+    """Post-processing filter to format replies for clean Text-to-Speech (TTS) voice playback and strip forbidden currency/markdown/emoji symbols."""
     if not reply:
         return reply
 
@@ -50,19 +50,34 @@ def clean_reply_formatting(reply: str) -> str:
     # 2. Strip Devanagari Hindi script characters if any slip through
     reply = re.sub(r'[\u0900-\u097F]+', '', reply)
 
-    # 3. Replace Indian Rupee symbol (₹) or ₹ 1500 -> 1500 rupees
-    reply = re.sub(r'₹\s*([0-9]+)', r'\1 rupees', reply)
+    # 3. Clean emoji number blocks (1️⃣, 2️⃣, 3️⃣, etc.) -> plain numbers (1., 2., 3.)
+    emoji_numbers = {
+        "1️⃣": "1.", "2️⃣": "2.", "3️⃣": "3.", "4️⃣": "4.", "5️⃣": "5.",
+        "6️⃣": "6.", "7️⃣": "7.", "8️⃣": "8.", "9️⃣": "9.", "🔟": "10."
+    }
+    for emo, num in emoji_numbers.items():
+        reply = reply.replace(emo, num)
+
+    # 4. Clean bracketed numbers like [1], [2] -> 1., 2.
+    reply = re.sub(r'\[([0-9]+)\]', r'\1.', reply)
+
+    # 5. Language-aware currency symbol replacement (Rs, Rs., PKR, ₹)
+    is_urdu = any('\u0600' <= ch <= '\u06ff' for ch in reply)
+    curr_label = "روپے" if is_urdu else "rupees"
+
+    # Replace Indian Rupee symbol (₹)
+    reply = re.sub(r'₹\s*([0-9,]+)', rf'\1 {curr_label}', reply)
     reply = re.sub(r'₹', '', reply)
 
-    # 4. Replace Rs. 1500 / 1500 Rs. / PKR 1500 -> 1500 rupees
-    reply = re.sub(r'(?:Rs\.?|PKR)\s*([0-9]+)', r'\1 rupees', reply, flags=re.IGNORECASE)
-    reply = re.sub(r'([0-9]+)\s*(?:Rs\.?|PKR)', r'\1 rupees', reply, flags=re.IGNORECASE)
-    reply = re.sub(r'\b(?:Rs\.?|PKR)\b', '', reply, flags=re.IGNORECASE)
+    # Replace Rs / Rs. / PKR before OR after price digits
+    reply = re.sub(r'(?:Rs\.?|PKR)\s*([0-9,]+)', rf'\1 {curr_label}', reply, flags=re.IGNORECASE)
+    reply = re.sub(r'([0-9,]+)\s*(?:Rs\.?|PKR)', rf'\1 {curr_label}', reply, flags=re.IGNORECASE)
+    reply = re.sub(r'\b(?:Rs\.?|PKR)\b', curr_label, reply, flags=re.IGNORECASE)
 
-    # 5. Remove duplicate currency labels (e.g. 1500 rupees rupees -> 1500 rupees)
+    # 6. Remove duplicate currency labels (e.g. 1500 rupees rupees -> 1500 rupees / 1500 روپے روپے -> 1500 روپے)
     reply = re.sub(r'\b(rupees|روپے)\s+\1\b', r'\1', reply)
 
-    # 6. Replace common Roman Urdu lead phrases if LLM leaked them
+    # 7. Replace common Roman Urdu lead phrases if LLM leaked them
     roman_urdu_fixes = [
         (r'\bAap ke cart me\b', 'In your cart', re.IGNORECASE),
         (r'\bAap ka\b', 'Your', re.IGNORECASE),
@@ -79,7 +94,7 @@ def clean_reply_formatting(reply: str) -> str:
     for pattern, replacement, flags in roman_urdu_fixes:
         reply = re.sub(pattern, replacement, reply, flags=flags)
 
-    # 7. Strip Markdown syntax symbols (*, #, `, ~) for smooth TTS voice reading
+    # 8. Strip Markdown syntax symbols (*, #, `, ~) for smooth TTS voice reading
     reply = re.sub(r'\*+([^*]+)\*+', r'\1', reply)
     reply = re.sub(r'#+\s*', '', reply)
     reply = re.sub(r'`+([^`]+)`+', r'\1', reply)
