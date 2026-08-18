@@ -46,7 +46,7 @@ class CatalogService:
 
     async def search(self, request: ProductSearchRequest) -> ProductSearchResponse:
         """Search and rank products using deterministic filters."""
-        working = request.model_copy(update={"limit": min(request.limit, 20)})
+        working = request.model_copy(update={"limit": min(request.limit, 100)})
         rows = await self._repository.search_rows(working)
         relaxed: list[str] = []
 

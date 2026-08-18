@@ -272,8 +272,8 @@ class CatalogRepository:
 
         available = self._available_quantity_expression()
         
-        # Enforce max upper bound of 20
-        limit = min(request.limit, 20) if request.limit else 20
+        # Enforce max upper bound of 100
+        limit = min(request.limit, 100) if request.limit else 100
         
         # Step 1: Find matching product IDs first to respect limit properly.
         product_query = (

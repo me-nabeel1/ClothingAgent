@@ -14,6 +14,7 @@ class ProductSearchRequest(BaseModel):
     """Structured search criteria accepted from the UI or clothing agent."""
 
     query_text: str | None = Field(default=None, max_length=300)
+    category: str | None = Field(default=None, max_length=100)
     categories: list[str] = Field(default_factory=list)
     product_types: list[str] = Field(default_factory=list)
     occasions: list[str] = Field(default_factory=list)
@@ -33,6 +34,12 @@ class ProductSearchRequest(BaseModel):
     in_stock_only: bool = True
     allow_relaxation: bool = True
     limit: int = Field(default=20, ge=1, le=500)
+
+    def model_post_init(self, __context) -> None:
+        if self.category and self.category.strip():
+            cat = self.category.strip()
+            if cat not in self.categories:
+                self.categories.append(cat)
 
 
 class BranchView(BaseModel):

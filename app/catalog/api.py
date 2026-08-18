@@ -58,10 +58,13 @@ async def list_products(
 ) -> ProductSearchResponse:
     """List products with optional filters for normal non-chat browsing."""
 
+    cat_list = [category.strip()] if category and category.strip() else []
+
     return await service.search(
         ProductSearchRequest(
             query_text=query_text,
             category=category,
+            categories=cat_list,
             colors=color or [],
             sizes=size or [],
             minimum_price=minimum_price,

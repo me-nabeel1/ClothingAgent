@@ -201,3 +201,8 @@ class TestBehavioralScenarios:
         mock_client.place_order.assert_called_once()
         assert "Order placed successfully" in response
 
+    def test_product_search_request_category_binding(self):
+        from app.catalog.schemas import ProductSearchRequest
+        req = ProductSearchRequest(category="T-Shirts")
+        assert req.categories == ["T-Shirts"]
+
