@@ -32,6 +32,22 @@ async def handle_agent_error(_: Request, exc: AgentError) -> JSONResponse:
     )
 
 
+from app.common.exceptions import AppError
+
+async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.message,
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "request_id": get_request_id(),
+            }
+        },
+    )
+
+
 async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
     logger.exception(
         "unhandled_agent_error",

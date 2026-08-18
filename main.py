@@ -105,6 +105,10 @@ if img_dir.exists():
 async def root_health():
     return {"status": "ok", "service": "clothing-unified-microservice", "port": 8000}
 
+from app.common.exceptions import AppError
+from app.core.exception_handlers import handle_agent_error, handle_app_error, handle_unexpected_error
+
 app.middleware("http")(trace_request)
 app.exception_handler(AgentError)(handle_agent_error)
+app.exception_handler(AppError)(handle_app_error)
 app.exception_handler(Exception)(handle_unexpected_error)
