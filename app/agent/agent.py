@@ -97,6 +97,14 @@ class SingleAgent:
                 logger.error("fallback_llm_tool_turn_failed", extra={"error": str(fallback_exc)})
                 return await self._local_rule_fallback(user_message, state, context)
 
+        # 2b. Context Sanitizer: If state has a focused product and user provided a variant selection (e.g. "blue large", "L"), convert any 'search' intent to 'add_to_cart'
+        from app.agent.tools.helpers import is_variant_selection_reply
+        if (state.selected_product_id or state.displayed_products) and is_variant_selection_reply(user_message):
+            for step in plan.steps:
+                if step.intent.intent == "search":
+                    logger.info("sanitizing_search_intent_to_add_to_cart", extra={"product_id": state.selected_product_id})
+                    step.intent.intent = "add_to_cart"
+
         # 3. Execute plan sequentially
         step_results = []
         for step in plan.steps:

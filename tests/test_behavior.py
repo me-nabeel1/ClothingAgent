@@ -230,3 +230,25 @@ class TestBehavioralScenarios:
         assert args.get("color") == "Blue"
         assert args.get("size") == "L"
 
+    @pytest.mark.asyncio
+    async def test_variant_response_sanitizes_search_to_add_to_cart(self, mock_client, store_context):
+        from app.agent.intent import IntentPlan, PlannedStep, StructuredIntent, ExtractedFilters
+        mock_llm = AsyncMock()
+        mock_extractor = AsyncMock()
+        
+        prod = _make_mock_product(1, col="Blue", sz="L")
+        mock_client.get_product.return_value = ProductDetails(product=prod)
+        now = datetime.now()
+        mock_client.add_cart_item.return_value = CartView(cart_id=uuid4(), total_quantity=1, subtotal=Decimal("4500"), items=[], created_at=now, updated_at=now, expires_at=now)
+        
+        mock_extractor.extract.return_value = IntentPlan(
+            steps=[PlannedStep(step_id="s1", intent=StructuredIntent(intent="search", search_overrides=ExtractedFilters(colors=["Blue"], sizes=["Large"])))]
+        )
+        
+        agent = SingleAgent(llm=mock_llm, tools=AgentTools(mock_client), intent_extractor=mock_extractor)
+        state = ConversationState(session_id="s_var_sanitizer")
+        state.selected_product_id = 1
+        
+        await agent.process_message("blue large", state, store_context)
+        mock_client.add_cart_item.assert_called_once()
+
