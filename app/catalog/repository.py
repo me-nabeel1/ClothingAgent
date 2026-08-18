@@ -236,19 +236,23 @@ class CatalogRepository:
                             )
                         )
                     else:
-                        searchable_columns = (
-                            Product.product_name,
-                            Product.description,
-                            Product.material,
-                            Product.fit,
-                            Product.season,
-                            Category.category_name,
-                            Color.color_name,
-                            Size.size_label,
-                        )
-                        token_conditions.append(
-                            or_(*[col.ilike(f"%{token}%") for col in searchable_columns])
-                        )
+                        from app.agent.tools.helpers import normalize_size_label, normalize_color_name
+                        norm_sz = normalize_size_label(token)
+                        norm_col = normalize_color_name(token)
+                        
+                        searchable_columns = [
+                            Product.product_name.ilike(f"%{token}%"),
+                            Product.description.ilike(f"%{token}%"),
+                            Product.material.ilike(f"%{token}%"),
+                            Product.fit.ilike(f"%{token}%"),
+                            Product.season.ilike(f"%{token}%"),
+                            Category.category_name.ilike(f"%{token}%"),
+                            Color.color_name.ilike(f"%{token}%"),
+                            Color.color_name.ilike(f"%{norm_col}%"),
+                            Size.size_label.ilike(f"%{token}%"),
+                            Size.size_label.ilike(f"%{norm_sz}%"),
+                        ]
+                        token_conditions.append(or_(*searchable_columns))
                 conditions.append(and_(*token_conditions))
 
         available = self._available_quantity_expression()

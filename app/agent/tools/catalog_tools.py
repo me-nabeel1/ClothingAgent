@@ -310,6 +310,7 @@ class CatalogToolsMixin:
         if detailed_products:
             state.record_displayed_products(detailed_products)
             state.product_cards = [ProductCard(product=p) for p in detailed_products]
+            state.selected_product_id = detailed_products[0].product_id
             return "\n\n".join(lines)
         return None
 
