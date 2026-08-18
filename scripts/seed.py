@@ -30,11 +30,11 @@ async def ensure_database_exists():
         return
 
     parsed = urlsplit(db_url)
-    target_db = parsed.path.lstrip("/") or "ClothingAppDummyDB"
-    user = parsed.username or "postgres"
-    password = parsed.password or "pgadmin"
-    host = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 5432
+    target_db = parsed.path.lstrip("/") or os.getenv("POSTGRES_DB", "ClothingAppDummyDB")
+    user = parsed.username or os.getenv("POSTGRES_USER", "postgres")
+    password = parsed.password or os.getenv("POSTGRES_PASSWORD", "")
+    host = parsed.hostname or os.getenv("POSTGRES_HOST", "127.0.0.1")
+    port = parsed.port or int(os.getenv("POSTGRES_PORT", "5432"))
 
     try:
         sys_conn = await asyncpg.connect(
