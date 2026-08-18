@@ -18,7 +18,7 @@ from app.clients.clothing_app.schemas import AddCartItemRequest, UpdateCartItemR
 logger = logging.getLogger(__name__)
 
 
-from app.agent.tools.helpers import normalize_size_label
+from app.agent.tools.helpers import normalize_size_label, normalize_color_name, is_color_match, is_size_match
 
 
 class CartToolsMixin:
@@ -36,16 +36,11 @@ class CartToolsMixin:
             state.cart.items = []
 
     def _get_matching_variants(self, variants: list[Any], color: Optional[str], size: Optional[str]) -> list[Any]:
-        norm_color = color.strip().lower() if color else None
-        norm_size = normalize_size_label(size) if size else None
-
         matching = []
         for v in variants:
-            v_color = (v.color or "").strip().lower()
-            v_size = normalize_size_label(v.size)
-            if norm_color and v_color != norm_color:
+            if color and not is_color_match(color, v.color):
                 continue
-            if norm_size and v_size != norm_size:
+            if size and not is_size_match(size, v.size):
                 continue
             matching.append(v)
         return matching

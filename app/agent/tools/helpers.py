@@ -67,16 +67,82 @@ def parse_categories_from_input(categories: Any = None, search_query: Optional[s
             if norm and norm not in normalized:
                 normalized.append(norm)
     return normalized
+# Multilingual size mapping covering standard international sizes, waist/chest numeric measurements, and Urdu script equivalents
+SIZE_DICTIONARY: dict[str, str] = {
+    "xs": "XS", "extra small": "XS", "ایکٹرا سمال": "XS",
+    "s": "S", "small": "S", "اسمال": "S", "چھوٹا": "S",
+    "m": "M", "medium": "M", "میڈیم": "M", "درمیانہ": "M",
+    "l": "L", "large": "L", "لارج": "L", "بڑا": "L",
+    "xl": "XL", "xlarge": "XL", "extra large": "XL", "x-large": "XL", "ایکسٹرا لارج": "XL",
+    "xxl": "XXL", "xxlarge": "XXL", "double xl": "XXL", "2xl": "XXL", "ڈبل ایکسٹرا لارج": "XXL",
+    "xxxl": "XXXL", "3xl": "XXXL", "triple xl": "XXXL", "ٹرپل ایکسٹرا لارج": "XXXL",
+    "۲۸": "28", "۲۹": "29", "۳۰": "30", "۳۱": "31", "۳۲": "32", "۳۳": "33", "۳۴": "34", "۳۵": "35",
+    "۳۶": "36", "۳۷": "37", "۳۸": "38", "۳۹": "39", "۴۰": "40", "۴۲": "42", "۴۴": "44", "۴۶": "46"
+}
+
+# Multilingual color dictionary mapping common color names across English and Urdu script to canonical color names
+COLOR_DICTIONARY: dict[str, str] = {
+    "blue": "Blue", "نیلا": "Blue", "نیلی": "Blue",
+    "maroon": "Maroon", "عنابی": "Maroon", "سرخ": "Maroon",
+    "black": "Black", "کالا": "Black", "کالی": "Black", "سیاہ": "Black",
+    "white": "White", "سفید": "White",
+    "beige": "Beige", "بیج": "Beige",
+    "grey": "Grey", "gray": "Grey", "گری": "Grey", "سرمئی": "Grey",
+    "red": "Red", "لال": "Red",
+    "navy": "Navy", "نیوی": "Navy", "نیوی بلیو": "Navy",
+    "green": "Green", "ہرا": "Green", "ہری": "Green", "سبز": "Green",
+    "brown": "Brown", "براؤن": "Brown", "بھورا": "Brown",
+    "khaki": "Khaki", "خاکی": "Khaki",
+    "pink": "Pink", "گلابی": "Pink",
+    "yellow": "Yellow", "پیلا": "Yellow", "پیلی": "Yellow",
+    "purple": "Purple", "جامنی": "Purple",
+    "orange": "Orange", "نارنجی": "Orange",
+}
+
+
 def normalize_size_label(raw: Any) -> str:
-    if not raw:
+    """Generic size label normalizer for any product category (tops, bottoms, footwear, suits, etc.)."""
+    if raw is None:
         return ""
-    val = str(raw).strip().lower()
-    mapping = {
-        "s": "S", "small": "S", "اسمال": "S", "چھوٹا": "S",
-        "m": "M", "medium": "M", "میڈیم": "M", "درمیانہ": "M",
-        "l": "L", "large": "L", "لارج": "L", "بڑا": "L",
-        "xl": "XL", "xlarge": "XL", "extra large": "XL", "x-large": "XL", "ایکسٹرا لارج": "XL",
-        "xxl": "XXL", "xxlarge": "XXL", "double xl": "XXL", "2xl": "XXL", "ڈبل ایکسٹرا لارج": "XXL",
-        "xxxl": "XXXL", "3xl": "XXXL", "triple xl": "XXXL"
-    }
-    return mapping.get(val, str(raw).strip().upper())
+    val_str = str(raw).strip()
+    val_lower = val_str.lower()
+    
+    if val_lower in SIZE_DICTIONARY:
+        return SIZE_DICTIONARY[val_lower]
+        
+    num_match = re.search(r'\b([0-9]{2,3})\b', val_str)
+    if num_match:
+        return num_match.group(1)
+        
+    return val_str.upper()
+
+
+def normalize_color_name(raw: Any) -> str:
+    """Generic color normalizer supporting English and Urdu script."""
+    if raw is None:
+        return ""
+    val_str = str(raw).strip()
+    val_lower = val_str.lower()
+    
+    if val_lower in COLOR_DICTIONARY:
+        return COLOR_DICTIONARY[val_lower]
+        
+    return val_str.title()
+
+
+def is_color_match(color_a: Optional[str], color_b: Optional[str]) -> bool:
+    """Generic case-insensitive and multilingual color matching."""
+    if not color_a or not color_b:
+        return True
+    norm_a = normalize_color_name(color_a).lower()
+    norm_b = normalize_color_name(color_b).lower()
+    return norm_a == norm_b or norm_a in norm_b or norm_b in norm_a
+
+
+def is_size_match(size_a: Optional[str], size_b: Optional[str]) -> bool:
+    """Generic size matching across all size formats."""
+    if not size_a or not size_b:
+        return True
+    norm_a = normalize_size_label(size_a)
+    norm_b = normalize_size_label(size_b)
+    return norm_a == norm_b
