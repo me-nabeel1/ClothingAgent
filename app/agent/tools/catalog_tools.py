@@ -1,6 +1,7 @@
 """Catalog tool handlers for product search, category exploration, and details retrieval."""
 
 import logging
+import re
 from typing import Optional, Any
 
 from app.agent.state import ConversationState, ProductCard
@@ -103,17 +104,45 @@ class CatalogToolsMixin:
         response = await self._client.search_products(request)
         
         if state.categories and response.products:
+            def _is_tshirt_field(text: str) -> bool:
+                return bool(re.search(r'\b(t-shirt|t-shirts|tshirt|tshirts|tee|tees)\b', text, re.IGNORECASE))
+
             def _matches_category(p, requested_cats):
-                cat_name = (p.category or "").lower().replace(" ", "").replace("-", "")
-                prod_name = (p.product_name or "").lower().replace(" ", "").replace("-", "")
-                prod_type = (p.product_type or "").lower().replace(" ", "").replace("-", "")
+                fields = [(p.category or "").lower(), (p.product_name or "").lower(), (p.product_type or "").lower()]
+                has_tshirt = any(_is_tshirt_field(f) for f in fields)
+                combined_clean = " ".join(fields)
+
                 for req in requested_cats:
-                    req_stem = req.lower().replace(" ", "").replace("-", "").rstrip("s")
-                    if req_stem == "shirt" and ("tshirt" in prod_type or "tshirt" in cat_name or "tee" in prod_type or "tee" in cat_name or "tee" in prod_name):
-                        continue
-                    if req_stem in cat_name or req_stem in prod_name or req_stem in prod_type:
-                        return True
-                    if cat_name in req_stem or prod_type in req_stem:
+                    req_clean = req.lower().replace(" ", "").replace("-", "").rstrip("s")
+
+                    if req_clean in ("tshirt", "tee"):
+                        if has_tshirt:
+                            return True
+                        return False
+
+                    if req_clean == "shirt":
+                        if has_tshirt:
+                            return False
+                        if "shirt" in combined_clean:
+                            return True
+                        return False
+
+                    if req_clean in ("jean", "denim"):
+                        if any(re.search(r'\b(jeans?|denim)\b', f, re.IGNORECASE) for f in fields):
+                            return True
+                        return False
+
+                    if req_clean == "pant":
+                        if any(re.search(r'\b(pants?)\b', f, re.IGNORECASE) for f in fields):
+                            return True
+                        return False
+
+                    if req_clean == "trouser":
+                        if any(re.search(r'\b(trousers?)\b', f, re.IGNORECASE) for f in fields):
+                            return True
+                        return False
+
+                    if req_clean in combined_clean.replace(" ", "").replace("-", ""):
                         return True
                 return False
 

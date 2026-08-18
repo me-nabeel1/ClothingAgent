@@ -51,49 +51,70 @@ class CatalogRepository:
             for category in request.categories:
                 raw_term = category.strip().lower()
                 clean_term = raw_term.replace("-", "").replace(" ", "")
-                words = raw_term.replace("-", " ").split()
-                
-                conditions_for_category = [
-                    func.lower(Category.category_name).contains(raw_term),
-                    func.replace(func.replace(func.lower(Category.category_name), "-", ""), " ", "").contains(clean_term),
-                    func.lower(Category.category_code).contains(clean_term),
-                    func.lower(parent.category_name).contains(raw_term),
-                ]
-                for w in words:
-                    if len(w) >= 3 and w not in {"the", "for", "and"}:
-                        conditions_for_category.append(func.lower(Category.category_name).contains(w))
-                        
+
                 if clean_term in ("tshirt", "tshirts", "tee", "tees"):
-                    conditions_for_category.extend([
+                    conditions_for_category = [
+                        func.lower(Category.category_name) == "t-shirts",
+                        func.lower(Category.category_code) == "tshirts",
                         func.lower(Category.category_name).contains("t-shirt"),
                         func.lower(Category.category_code).contains("tshirt"),
-                        func.lower(Category.category_name).contains("polo"),
-                        func.lower(Category.category_name).contains("shirt"),
-                    ])
+                    ]
                 elif clean_term in ("shirt", "shirts"):
-                    conditions_for_category.extend([
-                        func.lower(Category.category_name).contains("shirt"),
-                        func.lower(Category.category_code).contains("shirt"),
-                    ])
-                elif clean_term in ("pant", "pants", "trouser", "trousers"):
-                    conditions_for_category.extend([
+                    conditions_for_category = [
+                        and_(
+                            or_(
+                                func.lower(Category.category_name) == "shirts",
+                                func.lower(Category.category_code) == "shirts",
+                                func.lower(Category.category_name).contains("shirt"),
+                            ),
+                            func.lower(Category.category_name).not_contains("t-shirt"),
+                            func.lower(Category.category_code).not_contains("tshirt"),
+                        )
+                    ]
+                elif clean_term in ("pant", "pants"):
+                    conditions_for_category = [
+                        func.lower(Category.category_name) == "pants",
+                        func.lower(Category.category_code) == "pants",
                         func.lower(Category.category_name).contains("pant"),
+                    ]
+                elif clean_term in ("trouser", "trousers"):
+                    conditions_for_category = [
+                        func.lower(Category.category_name) == "trousers",
                         func.lower(Category.category_name).contains("trouser"),
-                    ])
-                elif clean_term in ("hoodie", "hoodies", "jacket", "jackets", "outerwear"):
-                    conditions_for_category.extend([
+                    ]
+                elif clean_term in ("jean", "jeans", "denim"):
+                    conditions_for_category = [
+                        func.lower(Category.category_name) == "jeans",
+                        func.lower(Category.category_code) == "jeans",
+                        func.lower(Category.category_name).contains("jean"),
+                    ]
+                elif clean_term in ("traditional", "kurta", "shalwar"):
+                    conditions_for_category = [
+                        func.lower(Category.category_name) == "traditional",
+                        func.lower(Category.category_code) == "traditional",
+                        func.lower(Category.category_name).contains("traditional"),
+                    ]
+                elif clean_term in ("outerwear", "hoodie", "jacket"):
+                    conditions_for_category = [
+                        func.lower(Category.category_name) == "outerwear",
+                        func.lower(Category.category_code) == "outerwear",
                         func.lower(Category.category_name).contains("outerwear"),
-                        func.lower(Category.category_name).contains("hoodie"),
-                        func.lower(Category.category_name).contains("jacket"),
-                    ])
-                    
+                    ]
+                else:
+                    conditions_for_category = [
+                        func.lower(Category.category_name).contains(raw_term),
+                        func.replace(func.replace(func.lower(Category.category_name), "-", ""), " ", "").contains(clean_term),
+                        func.lower(Category.category_code).contains(clean_term),
+                        func.lower(parent.category_name).contains(raw_term),
+                    ]
+
                 query = (
                     select(Category.category_id)
                     .outerjoin(parent, Category.parent_category_id == parent.category_id)
                     .where(or_(*conditions_for_category))
                 )
                 matching_categories.append(query)
-            
+
             conditions.append(or_(*[Product.category_id.in_(q) for q in matching_categories]))
         if request.colors:
             conditions.append(

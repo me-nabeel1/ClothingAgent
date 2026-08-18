@@ -52,6 +52,28 @@ def test_language_detection_and_tts_formatting():
     assert "rupees" in cleaned
 
 
+def test_category_filtering_purity():
+    tools = AgentTools(client=MagicMock())
+    tshirt = _make_product(product_id=1, product_name="Graphic Tee", category="T-Shirts", product_type="tshirt")
+    shirt = _make_product(product_id=2, product_name="Oxford Shirt", category="Shirts", product_type="dress_shirt")
+    jean = _make_product(product_id=3, product_name="Black Jeans", category="Jeans", product_type="jeans")
+
+    # Verify T-Shirts matching
+    state = ConversationState(session_id="test_cat_tshirt", categories=["T-Shirts"])
+    tools._client.search_products = AsyncMock(return_value=ProductSearchResponse(products=[tshirt, shirt, jean], result_count=3))
+    import asyncio
+    asyncio.run(tools.search(state))
+    assert len(state.displayed_products) == 1
+    assert state.displayed_products[0].product_name == "Graphic Tee"
+
+    # Verify Shirts matching (excludes T-Shirts)
+    state_shirts = ConversationState(session_id="test_cat_shirt", categories=["Shirts"])
+    tools._client.search_products = AsyncMock(return_value=ProductSearchResponse(products=[tshirt, shirt, jean], result_count=3))
+    asyncio.run(tools.search(state_shirts))
+    assert len(state_shirts.displayed_products) == 1
+    assert state_shirts.displayed_products[0].product_name == "Oxford Shirt"
+
+
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
