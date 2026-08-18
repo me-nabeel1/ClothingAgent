@@ -57,36 +57,69 @@ class ClothingAppClient(BackendPort):
         request: ProductSearchRequest,
     ) -> ProductSearchResponse:
         """Search products through the deployed-app retrieval contract."""
-
-        return await self._request(
-            "POST",
-            "/api/v1/products/search",
-            json=request.model_dump(mode="json"),
-            response_model=ProductSearchResponse,
-        )
+        try:
+            return await self._request(
+                "POST",
+                "/api/v1/products/search",
+                json=request.model_dump(mode="json"),
+                response_model=ProductSearchResponse,
+            )
+        except Exception:
+            from app.catalog.service import CatalogService
+            from app.catalog.repository import CatalogRepository
+            from app.database import get_session_factory
+            service = CatalogService(CatalogRepository(get_session_factory()()))
+            return await service.search(request)
 
     async def get_product(self, product_id: int) -> ProductDetails:
         """Retrieve complete product details."""
-
-        return await self._request(
-            "GET",
-            f"/api/v1/products/{product_id}",
-            response_model=ProductDetails,
-        )
+        try:
+            return await self._request(
+                "GET",
+                f"/api/v1/products/{product_id}",
+                response_model=ProductDetails,
+            )
+        except Exception:
+            from app.catalog.service import CatalogService
+            from app.catalog.repository import CatalogRepository
+            from app.database import get_session_factory
+            service = CatalogService(CatalogRepository(get_session_factory()()))
+            return await service.get_product(product_id)
 
     async def list_branches(self) -> list[BranchView]:
         """Retrieve active branches."""
-
-        data = await self._request("GET", "/api/v1/branches", response_model=None)
-        return [BranchView.model_validate(item) for item in data]
+        try:
+            data = await self._request("GET", "/api/v1/branches", response_model=None)
+            return [BranchView.model_validate(item) for item in data]
+        except Exception:
+            from app.catalog.service import CatalogService
+            from app.catalog.repository import CatalogRepository
+            from app.database import get_session_factory
+            service = CatalogService(CatalogRepository(get_session_factory()()))
+            return await service.list_branches()
 
     async def get_store_context(self) -> StoreContext:
         """Return general capabilities and structure of the store for the Agent."""
-        return await self._request("GET", "/api/v1/store/context", response_model=StoreContext)
+        try:
+            return await self._request("GET", "/api/v1/store/context", response_model=StoreContext)
+        except Exception:
+            from app.catalog.service import CatalogService
+            from app.catalog.repository import CatalogRepository
+            from app.database import get_session_factory
+            service = CatalogService(CatalogRepository(get_session_factory()()))
+            return await service.get_store_context()
 
     async def get_menu(self) -> dict:
         """Retrieve the catalog menu."""
-        return await self._request("GET", "/api/v1/menu", response_model=None)
+        try:
+            return await self._request("GET", "/api/v1/menu", response_model=None)
+        except Exception:
+            from app.catalog.service import CatalogService
+            from app.catalog.repository import CatalogRepository
+            from app.database import get_session_factory
+            service = CatalogService(CatalogRepository(get_session_factory()()))
+            menu = await service.get_menu()
+            return menu.model_dump(mode="json")
 
     async def get_availability(
         self,
