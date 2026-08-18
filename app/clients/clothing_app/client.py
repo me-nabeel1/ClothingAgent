@@ -127,27 +127,57 @@ class ClothingAppClient(BackendPort):
         branch_id: int,
     ) -> AvailabilityView:
         """Retrieve live availability for an exact selection."""
-
-        return await self._request(
-            "GET",
-            "/api/v1/inventory/availability",
-            params={"variant_id": variant_id, "branch_id": branch_id},
-            response_model=AvailabilityView,
-        )
+        try:
+            return await self._request(
+                "GET",
+                "/api/v1/inventory/availability",
+                params={"variant_id": variant_id, "branch_id": branch_id},
+                response_model=AvailabilityView,
+            )
+        except Exception:
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.database import get_session_factory
+            svc = InventoryService(InventoryRepository(get_session_factory()()))
+            return await svc.get_availability(variant_id, branch_id)
 
     async def create_cart(self) -> CartView:
         """Create the temporary application cart used by the chat demo."""
-
-        return await self._request(
-            "POST", "/api/v1/carts", response_model=CartView
-        )
+        try:
+            return await self._request(
+                "POST", "/api/v1/carts", response_model=CartView
+            )
+        except Exception:
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            service = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            return await service.create_cart()
 
     async def get_cart(self, cart_id: UUID) -> CartView:
         """Return the current application cart."""
-
-        return await self._request(
-            "GET", f"/api/v1/carts/{cart_id}", response_model=CartView
-        )
+        try:
+            return await self._request(
+                "GET", f"/api/v1/carts/{cart_id}", response_model=CartView
+            )
+        except Exception:
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            service = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            return await service.get_cart(cart_id)
 
     async def add_cart_item(
         self,
@@ -155,13 +185,25 @@ class ClothingAppClient(BackendPort):
         request: AddCartItemRequest,
     ) -> CartView:
         """Add an exact product option after application-side validation."""
-
-        return await self._request(
-            "POST",
-            f"/api/v1/carts/{cart_id}/items",
-            json=request.model_dump(mode="json"),
-            response_model=CartView,
-        )
+        try:
+            return await self._request(
+                "POST",
+                f"/api/v1/carts/{cart_id}/items",
+                json=request.model_dump(mode="json"),
+                response_model=CartView,
+            )
+        except Exception:
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            service = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            return await service.add_cart_item(cart_id, request)
 
     async def update_cart_item(
         self,
@@ -170,60 +212,149 @@ class ClothingAppClient(BackendPort):
         request: UpdateCartItemRequest,
     ) -> CartView:
         """Update one cart-item quantity."""
-
-        return await self._request(
-            "PATCH",
-            f"/api/v1/carts/{cart_id}/items/{item_id}",
-            json=request.model_dump(mode="json"),
-            response_model=CartView,
-        )
+        try:
+            return await self._request(
+                "PATCH",
+                f"/api/v1/carts/{cart_id}/items/{item_id}",
+                json=request.model_dump(mode="json"),
+                response_model=CartView,
+            )
+        except Exception:
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            service = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            return await service.update_cart_item(cart_id, item_id, request)
 
     async def remove_cart_item(self, cart_id: UUID, item_id: UUID) -> CartView:
         """Remove one cart item."""
-
-        return await self._request(
-            "DELETE",
-            f"/api/v1/carts/{cart_id}/items/{item_id}",
-            response_model=CartView,
-        )
+        try:
+            return await self._request(
+                "DELETE",
+                f"/api/v1/carts/{cart_id}/items/{item_id}",
+                response_model=CartView,
+            )
+        except Exception:
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            service = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            return await service.remove_cart_item(cart_id, item_id)
 
     async def clear_cart(self, cart_id: UUID) -> CartView:
         """Clear all cart items while retaining the cart identity."""
-
-        return await self._request(
-            "DELETE", f"/api/v1/carts/{cart_id}/items", response_model=CartView
-        )
+        try:
+            return await self._request(
+                "DELETE", f"/api/v1/carts/{cart_id}/items", response_model=CartView
+            )
+        except Exception:
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            service = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            return await service.clear_cart(cart_id)
 
     async def preview_cart(self, cart_id: UUID, request: PreviewCartRequest) -> StoreOrderPreview:
         """Preview checkout with discounts and delivery fees applied."""
-        return await self._request(
-            "POST",
-            f"/api/v1/carts/{cart_id}/preview",
-            json=request.model_dump(mode="json"),
-            response_model=StoreOrderPreview,
-        )
+        try:
+            return await self._request(
+                "POST",
+                f"/api/v1/carts/{cart_id}/preview",
+                json=request.model_dump(mode="json"),
+                response_model=StoreOrderPreview,
+            )
+        except Exception:
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            service = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            return await service.preview_cart(cart_id, request)
 
     async def place_order(self, request: PlaceOrderRequest) -> OrderView:
         """Submit an order and convert the temporary cart to a persistent state."""
-        return await self._request(
-            "POST",
-            "/api/v1/orders",
-            json=request.model_dump(mode="json"),
-            response_model=OrderView,
-        )
+        try:
+            return await self._request(
+                "POST",
+                "/api/v1/orders",
+                json=request.model_dump(mode="json"),
+                response_model=OrderView,
+            )
+        except Exception:
+            from app.orders.service import OrderService
+            from app.orders.repository import OrderRepository
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            cart_svc = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            svc = OrderService(OrderRepository(db), cart_svc, InventoryService(InventoryRepository(db)))
+            return await svc.place_order(request)
 
     async def get_order(self, order_id: UUID) -> OrderView:
         """Lookup an existing order."""
-        return await self._request(
-            "GET",
-            f"/api/v1/orders/{order_id}",
-            response_model=OrderView,
-        )
+        try:
+            return await self._request(
+                "GET",
+                f"/api/v1/orders/{order_id}",
+                response_model=OrderView,
+            )
+        except Exception:
+            from app.orders.service import OrderService
+            from app.orders.repository import OrderRepository
+            from app.cart.service import CartService
+            from app.cart.repository import CartRepository
+            from app.inventory.service import InventoryService
+            from app.inventory.repository import InventoryRepository
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            db = sf()
+            cart_svc = CartService(CartRepository(db), InventoryService(InventoryRepository(db)), PromotionService(PromotionRepository(db)))
+            svc = OrderService(OrderRepository(db), cart_svc, InventoryService(InventoryRepository(db)))
+            return await svc.get_order(order_id)
 
     async def get_promotions(self) -> list[OfferSummary]:
         """Retrieve active promotions."""
-        data = await self._request("GET", "/api/v1/promotions", response_model=None)
-        return [OfferSummary.model_validate(item) for item in data]
+        try:
+            data = await self._request("GET", "/api/v1/promotions", response_model=None)
+            return [OfferSummary.model_validate(item) for item in data]
+        except Exception:
+            from app.promotions.service import PromotionService
+            from app.promotions.repository import PromotionRepository
+            from app.database import get_session_factory
+            sf = get_session_factory()
+            svc = PromotionService(PromotionRepository(sf()))
+            return await svc.get_promotions()
 
     async def _request(
         self,
