@@ -34,18 +34,17 @@ def test_only_required_api_routes_are_exposed() -> None:
     routes = api_route_records()
     expected = {
         ("GET", "/health"),
-        ("GET", "/catalog/health/ready"),
-        ("GET", "/catalog/api/v1/products"),
-        ("POST", "/catalog/api/v1/products/search"),
-        ("GET", "/catalog/api/v1/products/{product_id}"),
-        ("GET", "/catalog/api/v1/branches"),
-        ("GET", "/catalog/api/v1/inventory/availability"),
-        ("POST", "/catalog/api/v1/carts"),
-        ("GET", "/catalog/api/v1/carts/{cart_id}"),
-        ("POST", "/catalog/api/v1/carts/{cart_id}/items"),
-        ("PATCH", "/catalog/api/v1/carts/{cart_id}/items/{item_id}"),
-        ("DELETE", "/catalog/api/v1/carts/{cart_id}/items/{item_id}"),
-        ("DELETE", "/catalog/api/v1/carts/{cart_id}/items"),
+        ("GET", "/api/v1/products"),
+        ("POST", "/api/v1/products/search"),
+        ("GET", "/api/v1/products/{product_id}"),
+        ("GET", "/api/v1/branches"),
+        ("GET", "/api/v1/inventory/availability"),
+        ("POST", "/api/v1/carts"),
+        ("GET", "/api/v1/carts/{cart_id}"),
+        ("POST", "/api/v1/carts/{cart_id}/items"),
+        ("PATCH", "/api/v1/carts/{cart_id}/items/{item_id}"),
+        ("DELETE", "/api/v1/carts/{cart_id}/items/{item_id}"),
+        ("DELETE", "/api/v1/carts/{cart_id}/items"),
     }
     assert expected.issubset(routes)
 

@@ -15,12 +15,10 @@ from app.core.exception_handlers import handle_agent_error, handle_unexpected_er
 from app.core.middleware import trace_request
 from app.core.observability import configure_logging
 
-# Agent Chat & Health
+# Agent Chat
 from app.core.chat import router as chat_router
-from app.core.health import router as agent_health_router
 
 # Catalog Domain Routers
-from app.api.health import router as catalog_health_router
 from app.catalog.api import router as catalog_router
 from app.cart.api import router as cart_router
 from app.orders.api import router as orders_router
@@ -59,7 +57,7 @@ app.add_middleware(
 )
 
 # ------------------------------------------------------------------
-# Primary Consolidated API Endpoints (Visible in Swagger UI /docs)
+# Consolidated API Endpoints (/api/v1)
 # ------------------------------------------------------------------
 app.include_router(chat_router, prefix=config.api_prefix)       # /api/v1/chat (Agent Concierge)
 app.include_router(catalog_router, prefix=config.api_prefix)    # /api/v1/products (Catalog)
@@ -67,26 +65,6 @@ app.include_router(cart_router, prefix=config.api_prefix)       # /api/v1/carts 
 app.include_router(orders_router, prefix=config.api_prefix)     # /api/v1/orders (Checkout & Orders)
 app.include_router(inventory_router, prefix=config.api_prefix)  # /api/v1/inventory (Stock & Branches)
 app.include_router(promotions_router, prefix=config.api_prefix) # /api/v1/promotions (Discounts & Offers)
-
-# ------------------------------------------------------------------
-# Legacy Prefix Aliases (Hidden from Swagger UI, active for backwards compatibility)
-# ------------------------------------------------------------------
-app.include_router(catalog_health_router, prefix="/catalog", include_in_schema=False)
-app.include_router(agent_health_router, prefix="/agent", include_in_schema=False)
-
-app.include_router(catalog_router, prefix="/catalog/api/v1", include_in_schema=False)
-app.include_router(cart_router, prefix="/catalog/api/v1", include_in_schema=False)
-app.include_router(orders_router, prefix="/catalog/api/v1", include_in_schema=False)
-app.include_router(inventory_router, prefix="/catalog/api/v1", include_in_schema=False)
-app.include_router(promotions_router, prefix="/catalog/api/v1", include_in_schema=False)
-
-app.include_router(chat_router, prefix=f"/agent{config.api_prefix}", include_in_schema=False)
-app.include_router(chat_router, prefix="/agent", include_in_schema=False)
-app.include_router(chat_router, prefix="/api", include_in_schema=False)
-app.include_router(chat_router, prefix="/v1", include_in_schema=False)
-app.include_router(chat_router, prefix="/api/v1/agent", include_in_schema=False)
-app.include_router(chat_router, prefix="/catalog/api/v1", include_in_schema=False)
-app.include_router(chat_router, prefix="", include_in_schema=False)
 
 # ------------------------------------------------------------------
 # Static Assets (Product Images)
