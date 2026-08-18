@@ -64,8 +64,10 @@ async def chat_endpoint(
         except Exception as e:
             raise HTTPException(503, f"Unable to load store context from backend: {e}")
 
-    should_reset = bool(request.reset_session or request.new_session or request.reset)
-    # Starting a new chat session retains active cart items unless customer explicitly removes them
+    from app.agent.utils import is_greeting_or_reset_message
+
+    should_reset = bool(request.reset_session or request.new_session or request.reset or is_greeting_or_reset_message(request.message))
+    # Starting a new chat session retains active cart items while flushing all other preferences, history, and card holders
     state = get_or_create_session(request.session_id, reset=should_reset, keep_cart=True)
     context = container.store_context.get_context()
 
