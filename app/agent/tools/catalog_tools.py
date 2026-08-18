@@ -165,19 +165,35 @@ class CatalogToolsMixin:
             "show products", "show categories", "tell me about", "what styles", "what outfits"
         ])
         
-        if is_general_query and not categories_val and not state.categories and not state.preferred_colors and not state.size_preferences:
-            state.displayed_products.clear()
-            state.product_cards.clear()
-        else:
-            state.record_displayed_products(response.products)
-            state.product_cards = [ProductCard(product=p) for p in response.products]
-        
         if not response.products:
             return "No products found matching the criteria."
-        lines = [f"Found {len(response.products)} products:"]
-        for idx, p in enumerate(response.products, 1):
-            price_int = int(float(p.final_price)) if p.final_price is not None else 0
-            lines.append(f"Option {idx}: {p.product_name} - {price_int} rupees.")
+
+        # Multi-category / subcategory 3-item cap per group
+        grouped_products: dict[str, list[Any]] = {}
+        for p in response.products:
+            key = p.product_type or p.category or "Items"
+            if key not in grouped_products:
+                grouped_products[key] = []
+            if len(grouped_products[key]) < 3:
+                grouped_products[key].append(p)
+                
+        final_products = [p for group in grouped_products.values() for p in group]
+        
+        state.record_displayed_products(final_products)
+        state.product_cards = [ProductCard(product=p) for p in final_products]
+
+        lines = ["Here are the available options matching your request (up to 3 options per category/style):"]
+        opt_idx = 1
+        for cat_key, items in grouped_products.items():
+            lines.append(f"\n--- {cat_key.title()} Options ---")
+            for p in items:
+                price_int = int(float(p.final_price)) if p.final_price is not None else 0
+                colors_str = ", ".join(sorted(list(set(v.color for v in p.variants if v.is_available)))) if p.variants else "Various"
+                sizes_str = ", ".join(sorted(list(set(v.size for v in p.variants if v.is_available)))) if p.variants else "Various"
+                lines.append(f"Option {opt_idx}: {p.product_name} - {price_int} rupees (Colors: {colors_str} | Sizes: {sizes_str})")
+                opt_idx += 1
+                
+        lines.append("\nINSTRUCTION: Present these options to the customer clearly grouped by category/style. Conclude by asking a warm follow-up: 'Please let me know your preference for color, size, or occasion so I can bring options tailored specifically to your style and preference, or add them to your bag!'")
         return "\n".join(lines)
 
     async def get_details(self, arg1: Any, arg2: Any = None) -> Any:
