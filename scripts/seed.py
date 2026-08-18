@@ -59,6 +59,9 @@ async def ensure_database_exists():
 
 
 async def seed_db(db: AsyncSession):
+    config = get_config()
+    print(f"Target Database URL: {config.database_url}")
+
     # 0. Automatically create schema and all tables if they don't exist yet
     engine = get_engine()
     async with engine.begin() as conn:
@@ -75,6 +78,8 @@ async def seed_db(db: AsyncSession):
     ]
     for table in tables:
         await db.execute(text(f"TRUNCATE TABLE clothing_store.{table} CASCADE"))
+    await db.commit()
+    print("All legacy tables successfully truncated and committed.")
     
     now = datetime.now(timezone.utc)
     
