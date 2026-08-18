@@ -215,3 +215,18 @@ class TestBehavioralScenarios:
         reply = await agent.process_message("Do you have this at Gulberg branch?", state, store_context)
         assert "online platform" in reply.lower() or "doorstep" in reply.lower() or "nearest northstar branch" in reply.lower()
 
+    def test_args_from_intent_merges_state_context(self):
+        from app.agent.utils import args_from_intent
+        from app.agent.intent import StructuredIntent, ExtractedFilters
+        state = ConversationState(session_id="s_merge")
+        state.preferred_colors = ["Blue"]
+        
+        intent = StructuredIntent(
+            intent="add_to_cart",
+            search_overrides=ExtractedFilters(sizes=["Large"])
+        )
+        
+        args = args_from_intent(intent, state)
+        assert args.get("color") == "Blue"
+        assert args.get("size") == "L"
+

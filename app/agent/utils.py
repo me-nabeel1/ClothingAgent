@@ -154,48 +154,92 @@ async def execute_validated_tool(spec: ToolSpec, args: dict, state: Conversation
         return f"Error executing {spec.name}: {str(exc)}"
 
 
+from app.agent.tools.helpers import normalize_size_label
+
+
 def args_from_intent(intent: StructuredIntent, state: ConversationState) -> dict:
     """Extract arguments dictionary from StructuredIntent for tool payload instantiation."""
     args = {}
-    filters = intent.search_overrides or intent.filters
-    if filters:
-        if filters.categories:
-            args["categories"] = filters.categories
-            args["category_name"] = filters.categories[0]
-        if filters.product_types: args["product_types"] = filters.product_types
-        if filters.occasions: args["occasions"] = filters.occasions
-        if filters.colors:
-            args["colors"] = filters.colors
-            args["color"] = filters.colors[0]
-        if filters.excluded_colors: args["excluded_colors"] = filters.excluded_colors
-        if filters.sizes:
-            args["size_mapping"] = filters.sizes
-            if isinstance(filters.sizes, dict) and filters.sizes:
-                args["size"] = next(iter(filters.sizes.values()))
-            elif isinstance(filters.sizes, list) and filters.sizes:
-                args["size"] = str(filters.sizes[0])
-            elif isinstance(filters.sizes, str):
-                args["size"] = filters.sizes
-        if filters.materials: args["materials"] = filters.materials
-        if filters.fits: args["fits"] = filters.fits
-        if filters.budget:
-            if getattr(filters.budget, 'minimum', None) is not None: args["minimum_price"] = filters.budget.minimum
-            if getattr(filters.budget, 'maximum', None) is not None: args["maximum_price"] = filters.budget.maximum
-        if filters.branch: args["branch_code"] = filters.branch
-        if filters.specific_article: args["article_code"] = filters.specific_article
-        
+
+    f_persistent = intent.filters
+    f_override = intent.search_overrides
+
+    categories = (f_override and f_override.categories) or (f_persistent and f_persistent.categories) or state.categories
+    product_types = (f_override and f_override.product_types) or (f_persistent and f_persistent.product_types) or state.product_types
+    occasions = (f_override and f_override.occasions) or (f_persistent and f_persistent.occasions) or state.occasions
+    colors = (f_override and f_override.colors) or (f_persistent and f_persistent.colors) or state.preferred_colors
+    excluded_colors = (f_override and f_override.excluded_colors) or (f_persistent and f_persistent.excluded_colors) or state.excluded_colors
+    sizes = (f_override and f_override.sizes) or (f_persistent and f_persistent.sizes) or state.size_preferences
+    materials = (f_override and f_override.materials) or (f_persistent and f_persistent.materials) or state.materials
+    fits = (f_override and f_override.fits) or (f_persistent and f_persistent.fits) or state.fits
+    budget = (f_override and f_override.budget) or (f_persistent and f_persistent.budget) or state.budget
+    branch = (f_override and f_override.branch) or (f_persistent and f_persistent.branch) or state.branch_preference
+    specific_article = (f_override and f_override.specific_article) or (f_persistent and f_persistent.specific_article)
+
+    if categories:
+        args["categories"] = categories
+        args["category_name"] = categories[0]
+    if product_types: args["product_types"] = product_types
+    if occasions: args["occasions"] = occasions
+    if colors:
+        args["colors"] = colors
+        args["color"] = colors[0]
+    if excluded_colors: args["excluded_colors"] = excluded_colors
+    if sizes:
+        args["size_mapping"] = sizes
+        if isinstance(sizes, dict) and sizes:
+            args["size"] = normalize_size_label(next(iter(sizes.values())))
+        elif isinstance(sizes, list) and sizes:
+            args["size"] = normalize_size_label(str(sizes[0]))
+        elif isinstance(sizes, str):
+            args["size"] = normalize_size_label(sizes)
+    if materials: args["materials"] = materials
+    if fits: args["fits"] = fits
+    if budget:
+        if getattr(budget, 'minimum', None) is not None: args["minimum_price"] = budget.minimum
+        if getattr(budget, 'maximum', None) is not None: args["maximum_price"] = budget.maximum
+    if branch: args["branch_code"] = branch
+    if specific_article: args["article_code"] = specific_article
+
     if intent.search_query:
         args["query_text"] = intent.search_query
         args["search_query"] = intent.search_query
         args["query"] = intent.search_query
         args["product_name"] = intent.search_query
-        
+
+    # Fallback extraction from state and user prompt if color or size is missing
+    if not args.get("color") and state.preferred_colors:
+        args["color"] = state.preferred_colors[0]
+        args["colors"] = state.preferred_colors
+
+    if not args.get("size") and state.size_preferences:
+        sizes_pref = state.size_preferences
+        if isinstance(sizes_pref, dict) and sizes_pref:
+            args["size"] = normalize_size_label(next(iter(sizes_pref.values())))
+        elif isinstance(sizes_pref, list) and sizes_pref:
+            args["size"] = normalize_size_label(str(sizes_pref[0]))
+        elif isinstance(sizes_pref, str):
+            args["size"] = normalize_size_label(sizes_pref)
+
+    if state.message_history:
+        last_user_msg = next((m.get("content", "") for m in reversed(state.message_history) if m.get("role") == "user"), "")
+        if last_user_msg:
+            if not args.get("size"):
+                size_match = re.search(r'\b(s|m|l|xl|xxl|3xl|small|medium|large|extra large|x-large|double xl|2xl|30|32|34|36|38|40)\b', last_user_msg, re.IGNORECASE)
+                if size_match:
+                    args["size"] = normalize_size_label(size_match.group(1))
+
+            if not args.get("color"):
+                color_match = re.search(r'\b(blue|maroon|black|white|beige|grey|gray|red|navy|green|brown|khaki)\b', last_user_msg, re.IGNORECASE)
+                if color_match:
+                    args["color"] = color_match.group(1).capitalize()
+
     if intent.selected_product_index is not None:
         args["selected_product_index"] = intent.selected_product_index
         if 1 <= intent.selected_product_index <= len(state.displayed_products):
             args["product_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
             args["item_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
-            
+
     if intent.quantity:
         args["quantity"] = intent.quantity
         
