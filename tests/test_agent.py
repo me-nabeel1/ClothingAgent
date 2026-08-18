@@ -30,6 +30,26 @@ from app.clients.clothing_app.schemas import (
     BranchAvailabilityView,
     CartView,
 )
+from app.agent.utils import detect_input_language, clean_reply_formatting
+
+
+def test_language_detection_and_tts_formatting():
+    # Urdu script
+    assert detect_input_language("مجھے ٹی شرٹس دکھاؤ") == "ur"
+    # Roman Urdu voice STT
+    assert detect_input_language("mujhe t-shirts dikhao") == "ur"
+    assert detect_input_language("pehla option add kardo") == "ur"
+    # English
+    assert detect_input_language("show me black t-shirts under 2000") == "en"
+
+    # TTS Markdown formatting cleanup
+    raw_markdown = "**Option 1:** *Oxford Shirt* - 2500.00 Rs."
+    cleaned = clean_reply_formatting(raw_markdown)
+    assert "**" not in cleaned
+    assert "*" not in cleaned
+    assert ".00" not in cleaned
+    assert "Rs." not in cleaned
+    assert "rupees" in cleaned
 
 
 # ---------------------------------------------------------------------------

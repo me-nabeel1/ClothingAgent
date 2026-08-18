@@ -15,6 +15,7 @@ from app.agent.utils import (
     build_concierge_greeting,
     execute_validated_tool,
     args_from_intent,
+    detect_input_language,
 )
 from app.clients.clothing_app.schemas import StoreContext
 from app.llm.client import LLMClient, LLMMessage
@@ -163,9 +164,36 @@ class SingleAgent:
         return args_from_intent(intent, state)
 
     async def _synthesize_reply(self, step_results: list[str], state: ConversationState, context: StoreContext) -> str:
-        """Synthesize a natural language reply from the step results."""
+        """Synthesize a natural language reply from the step results matching user input language and optimized for TTS playback."""
         results_str = "\n\n---\n\n".join(step_results)
         store_ctx_str = format_store_context_str(context)
+
+        # Detect language of last user message
+        last_user_msg = ""
+        for msg in reversed(state.message_history):
+            if msg.get("role") == "user":
+                last_user_msg = msg.get("content", "")
+                break
+
+        lang = detect_input_language(last_user_msg)
+
+        if lang == "ur":
+            language_mandate = (
+                "STRICT LANGUAGE MANDATE:\n"
+                "The user input is URDU (Urdu script or Roman Urdu speech transcript).\n"
+                "YOU MUST REPLY STRICTLY IN URDU SCRIPT (اردو - Nasta'liq).\n"
+                "NEVER reply in English. NEVER write Roman Urdu ('Aap ke cart me...', 'Pehla option...').\n"
+                "Write clear, professional Urdu script (e.g. 'یہ لیجیے، آپ کے لیے بہترین ٹی شرٹس موجود ہیں').\n"
+                "Ensure prices use 'روپے' label and whole integer numbers (e.g. 1000 روپے)."
+            )
+        else:
+            language_mandate = (
+                "STRICT LANGUAGE MANDATE:\n"
+                "The user input is ENGLISH.\n"
+                "YOU MUST REPLY STRICTLY IN PROFESSIONAL ENGLISH.\n"
+                "NEVER reply in Urdu script or Roman Urdu.\n"
+                "Ensure prices use 'rupees' label and whole integer numbers (e.g. 1000 rupees)."
+            )
 
         system_content = (
             f"{SYSTEM_PROMPT_VOICE}\n\n"
@@ -173,11 +201,11 @@ class SingleAgent:
             f"Current State:\n{state.model_dump_json(exclude_defaults=True)}\n\n"
             "Action Results:\n"
             f"{results_str}\n\n"
-            "CRITICAL LANGUAGE MANDATE:\n"
-            "Supported response languages are ENGLISH and URDU SCRIPT (اردو - Nasta'liq) ONLY.\n"
-            "ROMAN URDU OUTPUT IS STRICTLY FORBIDDEN. NEVER write 'Aap ke cart me...', 'Pehla option...', 'Yeh shirt...'.\n"
-            "If the customer wrote in Urdu Script (e.g. 'مجھے پینٹس دکھاؤ'), reply strictly in Urdu Script (اردو).\n"
-            "If the customer wrote in English OR Roman Urdu (e.g. 'mujhe t-shirts dikhao', 'pehla add karo'), reply strictly in professional English.\n\n"
+            f"{language_mandate}\n\n"
+            "TEXT-TO-SPEECH (TTS) FORMATTING MANDATE:\n"
+            "The reply will be spoken aloud to the customer via Text-to-Speech (TTS).\n"
+            "DO NOT use markdown symbols like **, *, #, bullet asterisks, or complex code blocks.\n"
+            "Use clear, natural sentences ending with full stops (.) for smooth voice pauses.\n\n"
             "Synthesize a conversational reply for the customer based on these results."
         )
 
