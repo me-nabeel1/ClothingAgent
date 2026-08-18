@@ -6,16 +6,54 @@ from decimal import Decimal
 import sys
 import os
 import random
+from urllib.parse import urlsplit
+import asyncpg
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-
 from app.database import get_db, Base, get_engine
+from app.config import get_config
 from app.catalog.models import Branch, Category, Product, ProductVariant, Color, Size, ProductImage
 from app.inventory.models import BranchInventory
 from app.promotions.models import Offer
+
+
+async def ensure_database_exists():
+    """Connect to default system PostgreSQL database and automatically create target database if missing."""
+    config = get_config()
+    db_url = config.database_url
+    if "postgresql" not in db_url:
+        return
+
+    parsed = urlsplit(db_url)
+    target_db = parsed.path.lstrip("/") or "ClothingAppDummyDB"
+    user = parsed.username or "postgres"
+    password = parsed.password or "pgadmin"
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 5432
+
+    try:
+        sys_conn = await asyncpg.connect(
+            user=user,
+            password=password,
+            host=host,
+            port=port,
+            database="postgres"
+        )
+        try:
+            exists = await sys_conn.fetchval(
+                "SELECT 1 FROM pg_database WHERE datname = $1", target_db
+            )
+            if not exists:
+                print(f"Database '{target_db}' does not exist. Creating database '{target_db}'...")
+                await sys_conn.execute(f'CREATE DATABASE "{target_db}"')
+                print(f"Database '{target_db}' created successfully!")
+        finally:
+            await sys_conn.close()
+    except Exception as e:
+        print(f"Note: Automatic database creation check skipped ({e})")
+
 
 async def seed_db(db: AsyncSession):
     # 0. Automatically create schema and tables if they don't exist yet
@@ -315,6 +353,7 @@ async def seed_db(db: AsyncSession):
     print(f"Database seeded successfully with {len(all_products)} products and {len(product_variants)} variants!")
 
 async def main():
+    await ensure_database_exists()
     async for db in get_db():
         await seed_db(db)
         break 
