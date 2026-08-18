@@ -93,7 +93,16 @@ async def seed_db(db: AsyncSession):
             "names": ["Oxford Shirt", "Linen Shirt", "Dress Shirt", "Button-Down", "Printed Shirt"],
             "prefixes": ["Premium", "Classic", "Modern", "Essential", "Casual"],
             "price_range": (2000, 6000), "size_range": ["S", "M", "L", "XL", "XXL"],
-            "images": ["https://images.unsplash.com/photo-1596755094514-f87e32f85e2c?w=500&q=80", "https://images.unsplash.com/photo-1603252109303-2751441dd157?w=500&q=80", "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=500&q=80"]
+            "images": [
+                "/assets/products/regent_oxford_formal_shirt_white.webp",
+                "/assets/products/essential_cotton_button_down_pale_blue.webp",
+                "/assets/products/harbor_linen_blend_shirt_light_blue.webp",
+                "/assets/products/breeze_short_sleeve_shirt_peach.webp",
+                "/assets/products/breeze_short_sleeve_shirt_sand.webp",
+                "/assets/products/heritage_pique_polo_navy_blue.webp",
+                "/assets/products/monarch_mandarin_collar_shirt_cream.webp",
+                "/assets/products/monarch_mandarin_collar_beige.webp"
+            ]
         },
         "T-Shirts": {
             "types": ["t_shirt", "polo"], "occasions": ["casual", "gym"],
@@ -101,7 +110,19 @@ async def seed_db(db: AsyncSession):
             "names": ["Crew Neck T-Shirt", "V-Neck T-Shirt", "Polo Shirt", "Graphic Tee"],
             "prefixes": ["Basic", "Premium", "Athletic", "Vintage", "Essential"],
             "price_range": (800, 3000), "size_range": ["S", "M", "L", "XL", "XXL"],
-            "images": ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80", "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80"]
+            "images": [
+                "/assets/products/core_crew_neck_tshirt_white.webp",
+                "/assets/products/core_crew_neck_tshirt_lightgray.webp",
+                "/assets/products/city_grid_graphic_tshirt_black.webp",
+                "/assets/products/city_grid_graphic_tshirt_charcoal.webp",
+                "/assets/products/flex_compression_tee_black.webp",
+                "/assets/products/flex_compression_tee_blue.webp",
+                "/assets/products/limited_drop_neon_tee_lime.webp",
+                "/assets/products/limited_drop_neon_tee_neon_green.webp",
+                "/assets/products/velocity_training_tshirt_black.webp",
+                "/assets/products/velocity_training_tshirt_navy.webp",
+                "/assets/products/velocity_training_tshirt_teal.webp"
+            ]
         },
         "Pants": {
             "types": ["chino", "dress_pants"], "occasions": ["casual", "formal", "business"],
@@ -109,7 +130,12 @@ async def seed_db(db: AsyncSession):
             "names": ["Chinos", "Dress Pants", "Khakis", "Flat Front Pants"],
             "prefixes": ["Everyday", "Formal", "Classic", "Stretch", "Premium"],
             "price_range": (2500, 6500), "size_range": ["30", "32", "34", "36", "38"],
-            "images": ["https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80"]
+            "images": [
+                "/assets/products/classic_cotton_pants_brown.webp",
+                "/assets/products/classic_cotton_pants_taupe.webp",
+                "/assets/products/avenue_cotton_chinos_khaki.webp",
+                "/assets/products/utility_six_pocket_cargo_olive_green.webp"
+            ]
         },
         "Traditional": {
             "types": ["kurta", "shalwar_kameez", "sherwani"], "occasions": ["wedding", "eid", "casual"],
@@ -117,7 +143,10 @@ async def seed_db(db: AsyncSession):
             "names": ["Kurta", "Shalwar Kameez", "Sherwani", "Waistcoat"],
             "prefixes": ["Embroidered", "Festive", "Classic", "Premium", "Designer"],
             "price_range": (3000, 25000), "size_range": ["S", "M", "L", "XL", "XXL"],
-            "images": ["https://images.unsplash.com/photo-1597983073493-88cd35f47448?w=500&q=80"]
+            "images": [
+                "/assets/products/monarch_mandarin_collar_beige.webp",
+                "/assets/products/monarch_mandarin_collar_shirt_cream.webp"
+            ]
         },
         "Outerwear": {
             "types": ["jacket", "bomber_jacket", "leather_jacket", "hoodie"], "occasions": ["casual", "party", "winter"],
@@ -125,7 +154,10 @@ async def seed_db(db: AsyncSession):
             "names": ["Bomber Jacket", "Moto Jacket", "Winter Hoodie", "Trench Coat", "Puffer Jacket"],
             "prefixes": ["Classic", "Premium", "Warm", "Stylish", "Rugged"],
             "price_range": (4000, 15000), "size_range": ["S", "M", "L", "XL", "XXL"],
-            "images": ["https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500&q=80", "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80", "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80"]
+            "images": [
+                "/assets/products/metro_fleece_hoodie_burgundy.webp",
+                "/assets/products/metro_fleece_hoodie_maroon.webp"
+            ]
         },
         "Formal Wear": {
             "types": ["suit", "blazer", "tuxedo"], "occasions": ["business", "wedding", "formal"],
@@ -133,7 +165,10 @@ async def seed_db(db: AsyncSession):
             "names": ["Two-Piece Suit", "Three-Piece Suit", "Formal Blazer", "Tuxedo"],
             "prefixes": ["Executive", "Premium", "Designer", "Classic", "Sharp"],
             "price_range": (8000, 25000), "size_range": ["S", "M", "L", "XL", "XXL"],
-            "images": ["https://images.unsplash.com/photo-1594938298596-70f56fb3cecb?w=500&q=80"]
+            "images": [
+                "/assets/products/regent_oxford_formal_shirt_white.webp",
+                "/assets/products/executive_pleated_trousers_black.webp"
+            ]
         },
         "Jeans": {
             "types": ["jeans"], "occasions": ["casual", "party"],
@@ -141,7 +176,11 @@ async def seed_db(db: AsyncSession):
             "names": ["Blue Denim", "Black Jeans", "Faded Jeans", "Ripped Jeans"],
             "prefixes": ["Classic", "Stretch", "Rugged", "Premium", "Everyday"],
             "price_range": (2000, 6000), "size_range": ["30", "32", "34", "36", "38"],
-            "images": ["https://images.unsplash.com/photo-1542272604-787c3835535d?w=500&q=80"]
+            "images": [
+                "/assets/products/ridge_slim_fit_jeans_medium_blue.webp",
+                "/assets/products/foundry_straight_jeans_dark_blue.webp",
+                "/assets/products/weekend_denim_shorts_medium_blue.webp"
+            ]
         },
         "Activewear": {
             "types": ["shorts", "joggers", "tracksuit"], "occasions": ["gym", "casual", "running"],
@@ -149,7 +188,15 @@ async def seed_db(db: AsyncSession):
             "names": ["Running Shorts", "Fleece Joggers", "Track Pants", "Tracksuit"],
             "prefixes": ["Performance", "Breathable", "Lightweight", "Pro", "Core"],
             "price_range": (1500, 5000), "size_range": ["S", "M", "L", "XL", "XXL"],
-            "images": ["https://images.unsplash.com/photo-1533681473678-01e4a6438075?w=500&q=80", "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500&q=80"]
+            "images": [
+                "/assets/products/aero_gym_joggers_dark_gray.webp",
+                "/assets/products/motion_training_shorts_black.webp",
+                "/assets/products/motion_training_shorts_charcoal.webp",
+                "/assets/products/motion_training_shorts_teal.webp",
+                "/assets/products/sprint_tapered_track_pants_black.webp",
+                "/assets/products/sprint_tapered_track_pants_charcoal.webp",
+                "/assets/products/sprint_tapered_track_pants_teal.webp"
+            ]
         },
         "Gym Wear": {
             "types": ["t_shirt", "tank_top", "compression"], "occasions": ["gym", "workout", "running"],
@@ -157,7 +204,13 @@ async def seed_db(db: AsyncSession):
             "names": ["Compression T-Shirt", "Tank Top", "Workout Tee", "Muscle Shirt"],
             "prefixes": ["Pro", "Elite", "Breathable", "Core", "Performance"],
             "price_range": (1000, 3500), "size_range": ["S", "M", "L", "XL", "XXL"],
-            "images": ["https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=500&q=80", "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80"]
+            "images": [
+                "/assets/products/flex_compression_tee_black.webp",
+                "/assets/products/flex_compression_tee_blue.webp",
+                "/assets/products/velocity_training_tshirt_black.webp",
+                "/assets/products/velocity_training_tshirt_navy.webp",
+                "/assets/products/velocity_training_tshirt_teal.webp"
+            ]
         },
         "Trousers": {
             "types": ["trousers", "cargo"], "occasions": ["casual", "business", "outdoor"],
@@ -165,7 +218,12 @@ async def seed_db(db: AsyncSession):
             "names": ["Cotton Trousers", "Cargo Pants", "Pleated Trousers"],
             "prefixes": ["Casual", "Classic", "Utility", "Premium", "Everyday"],
             "price_range": (2000, 5500), "size_range": ["30", "32", "34", "36", "38"],
-            "images": ["https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80"]
+            "images": [
+                "/assets/products/comfort_stretch_trousers_charcoal_gray.webp",
+                "/assets/products/executive_pleated_trousers_black.webp",
+                "/assets/products/studio_drawstring_trousers_stone.webp",
+                "/assets/products/studio_drawstring_trousers_taupe.webp"
+            ]
         }
     }
 
