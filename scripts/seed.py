@@ -12,6 +12,7 @@ import asyncpg
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, Base, get_engine
 from app.config import get_config
 from app.catalog.models import Branch, Category, Product, ProductVariant, Color, Size, ProductImage
