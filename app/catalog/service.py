@@ -270,9 +270,9 @@ class CatalogService:
                 groups[cat].append(product)
 
         preferred_order = [
-            "T-Shirts", "Polo Shirts", "Cotton Shirts", "Formal Shirts",
-            "Jeans", "Trousers", "Cotton Pants", "Cargo Pants",
-            "Shorts", "Hoodies", "Gym Wear", "Track Pants",
+            "T-Shirts", "Shirts", "Pants", "Trousers",
+            "Jeans", "Outerwear", "Formal Wear", "Traditional",
+            "Activewear", "Gym Wear"
         ]
         menu = []
         seen = set()

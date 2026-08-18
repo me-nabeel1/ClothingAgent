@@ -216,34 +216,59 @@ class CatalogRepository:
             )
         )
         if request.query_text and not request.semantic_tags:
-            terms = [
-                token
-                for token in re.findall(r"[a-zA-Z0-9-]+", request.query_text.lower())
-                if len(token) >= 3
-                and token not in {"show", "find", "need", "want", "with", "please"}
-            ][:8]
-            if terms:
-                searchable_columns = (
-                    Product.product_name,
-                    Product.description,
-                    Product.material,
-                    Product.fit,
-                    Product.season,
-                    Category.category_name,
-                )
+            query_lower = request.query_text.lower()
+            if any(term in query_lower for term in ["t-shirt", "tshirt", "tee", "t shirt"]):
                 conditions.append(
-                    and_(
-                        *[
-                            or_(
-                                *[
-                                    column.ilike(f"%{term}%")
-                                    for column in searchable_columns
-                                ]
-                            )
-                            for term in terms
-                        ]
+                    or_(
+                        func.lower(Category.category_name) == "t-shirts",
+                        func.lower(Category.category_code) == "tshirts",
+                        Product.product_name.ilike("%t-shirt%"),
+                        Product.product_name.ilike("%tee%"),
                     )
                 )
+            elif "shirt" in query_lower:
+                conditions.append(
+                    and_(
+                        or_(
+                            func.lower(Category.category_name) == "shirts",
+                            func.lower(Category.category_code) == "shirts",
+                            Product.product_name.ilike("%shirt%"),
+                        ),
+                        ~func.lower(Category.category_name).contains("t-shirt"),
+                        ~func.lower(Category.category_code).contains("tshirt"),
+                        ~Product.product_name.ilike("%t-shirt%"),
+                        ~Product.product_name.ilike("%tee%"),
+                    )
+                )
+            else:
+                terms = [
+                    token
+                    for token in re.findall(r"[a-zA-Z0-9-]+", request.query_text.lower())
+                    if len(token) >= 3
+                    and token not in {"show", "find", "need", "want", "with", "please"}
+                ][:8]
+                if terms:
+                    searchable_columns = (
+                        Product.product_name,
+                        Product.description,
+                        Product.material,
+                        Product.fit,
+                        Product.season,
+                        Category.category_name,
+                    )
+                    conditions.append(
+                        and_(
+                            *[
+                                or_(
+                                    *[
+                                        column.ilike(f"%{term}%")
+                                        for column in searchable_columns
+                                    ]
+                                )
+                                for term in terms
+                            ]
+                        )
+                    )
 
         available = self._available_quantity_expression()
         
