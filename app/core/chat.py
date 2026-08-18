@@ -28,7 +28,7 @@ class ChatResponse(BaseModel):
 
 class SessionResetRequest(BaseModel):
     session_id: str
-    keep_cart: bool = False
+    keep_cart: bool = True
 
 
 class SessionResetResponse(BaseModel):

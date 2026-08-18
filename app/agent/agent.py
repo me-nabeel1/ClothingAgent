@@ -55,7 +55,7 @@ class SingleAgent:
         # Check if user greets or explicitly requests resetting session
         is_greeting, is_reset = is_greeting_or_reset_message(user_message)
         if is_greeting or is_reset:
-            state.reset()
+            state.reset(keep_cart=True)
             state.current_intent = "greeting"
             state.message_history.append({"role": "user", "content": user_message})
             reply = build_concierge_greeting(context.store_name, user_message)
@@ -161,7 +161,7 @@ class SingleAgent:
             return "General chat intent detected. No tool executed."
 
         if intent.intent in ["reset_session", "clear_session", "new_session"]:
-            state.reset()
+            state.reset(keep_cart=True)
             return "Session reset successfully. All previous state cleared."
 
         if intent.intent == "clear_preferences":

@@ -721,8 +721,8 @@ class TestSessionIsolationAndReset:
         reply = await agent.process_message("start fresh", state, store_context)
 
         assert "Northstar Menswear" in reply or "reset" in reply
-        assert state.cart.cart_id is None
-        assert state.cart.item_count == 0
+        assert state.cart.cart_id == "cart-xyz"
+        assert state.cart.item_count == 2
 
     @pytest.mark.asyncio
     async def test_session_reset_endpoint(self):
@@ -735,7 +735,7 @@ class TestSessionIsolationAndReset:
 
         assert res.session_id == "s_endpoint_test"
         assert res.state.categories == []
-        assert res.state.cart.item_count == 0
+        assert res.state.cart.item_count == 5
 
     @pytest.mark.asyncio
     async def test_new_chat_session_retains_cart(self):
