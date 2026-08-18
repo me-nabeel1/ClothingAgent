@@ -292,9 +292,9 @@ class CatalogService:
             raise NotFoundError("Product was not found.", code="PRODUCT_NOT_FOUND")
 
         rows = await self._repository.search_rows(
-            ProductSearchRequest(in_stock_only=False, allow_relaxation=False, limit=1),
+            ProductSearchRequest(in_stock_only=False, allow_relaxation=False, limit=100),
             product_id=product_id,
-            database_limit=300,
+            database_limit=500,
         )
         offers = []
         if self._promotions:

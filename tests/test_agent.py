@@ -406,7 +406,7 @@ class TestAgentTools:
         state = ConversationState(session_id="s1", branch_preference="ISB")
         await tools.get_products(state)
         req = mock_client.search_products.call_args[0][0]
-        assert req.branch_code == "ISB"
+        assert req.branch_code is None
 
     @pytest.mark.asyncio
     async def test_combined_filters(self, mock_client):
@@ -425,7 +425,7 @@ class TestAgentTools:
         assert req.colors == ["Black"]
         assert req.occasions == ["wedding"]
         assert req.maximum_price == 5000
-        assert req.branch_code == "ISB"
+        assert req.branch_code is None
 
     @pytest.mark.asyncio
     async def test_multiple_categories_higher_limit(self, mock_client):

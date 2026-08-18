@@ -193,8 +193,17 @@ class CatalogToolsMixin:
             if 1 <= selected_index <= len(state.displayed_products):
                 target_product_ids.append(state.displayed_products[selected_index - 1].product_id)
 
+        query_str = getattr(payload, "search_query", None) if payload else None
+        if not query_str and hasattr(payload, "query") and getattr(payload, "query", None):
+            query_str = getattr(payload, "query")
+
+        if not target_product_ids and query_str:
+            search_res = await self._client.search_products(ProductSearchRequest(query_text=query_str, in_stock_only=False, limit=5))
+            if search_res and search_res.products:
+                target_product_ids = [p.product_id for p in search_res.products[:2]]
+
         if not target_product_ids and state.displayed_products:
-            target_product_ids = [dp.product_id for dp in state.displayed_products]
+            target_product_ids = [dp.product_id for dp in state.displayed_products[:2]]
 
         if not target_product_ids:
             return None
@@ -203,8 +212,25 @@ class CatalogToolsMixin:
         detailed_products = []
         lines = []
 
-        req_color = state.preferred_colors[0] if state.preferred_colors else None
-        req_size = list(state.size_preferences.values())[0] if state.size_preferences else None
+        req_color = None
+        req_size = None
+
+        if payload:
+            colors_val = getattr(payload, "colors", None) or getattr(payload, "preferred_colors", None)
+            if colors_val and isinstance(colors_val, list) and colors_val:
+                req_color = colors_val[0]
+            sizes_val = getattr(payload, "sizes", None) or getattr(payload, "size_preferences", None)
+            if isinstance(sizes_val, dict) and sizes_val:
+                req_size = list(sizes_val.values())[0]
+            elif isinstance(sizes_val, list) and sizes_val:
+                req_size = sizes_val[0]
+            elif isinstance(sizes_val, str):
+                req_size = sizes_val
+
+        if not req_color and state.preferred_colors:
+            req_color = state.preferred_colors[0]
+        if not req_size and state.size_preferences:
+            req_size = list(state.size_preferences.values())[0]
 
         for pid in target_product_ids:
             logger.info(
