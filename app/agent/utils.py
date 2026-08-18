@@ -142,19 +142,24 @@ def build_concierge_greeting(store_name: str, user_message: str) -> str:
 async def execute_validated_tool(spec: ToolSpec, args: dict, state: ConversationState) -> str:
     """Validate tool requirements via ParameterRequirementsChecker and execute the tool handler safely."""
     try:
+        logger.info(f"[TOOL INITIATED] Initiating execution for tool '{spec.name}'", extra={"tool": spec.name, "tool_args": args})
         validation_error = await ParameterRequirementsChecker.check(spec, args, state)
         if validation_error:
+            logger.info(f"[TOOL GATED] Tool '{spec.name}' execution gated by checker: {validation_error}")
             return validation_error
 
         payload = spec.payload_model(**args)
+        logger.info(f"[EXECUTOR RUNNING] Invoking handler for tool '{spec.name}' with payload: {payload.model_dump(exclude_none=True)}")
         result = await spec.handler(state, payload)
-        return result if isinstance(result, str) else str(result)
+        result_str = result if isinstance(result, str) else str(result)
+        logger.info(f"[EXECUTOR COMPLETED] Tool '{spec.name}' executed successfully. Result: {result_str[:120]}")
+        return result_str
     except Exception as exc:
-        logger.error(f"Error executing tool {spec.name}: {exc}")
+        logger.error(f"[EXECUTOR ERROR] Error executing tool {spec.name}: {exc}")
         return f"Error executing {spec.name}: {str(exc)}"
 
 
-from app.agent.tools.helpers import normalize_size_label
+from app.agent.tools.helpers import normalize_size_label, normalize_color_name
 
 
 def args_from_intent(intent: StructuredIntent, state: ConversationState) -> dict:
@@ -232,13 +237,32 @@ def args_from_intent(intent: StructuredIntent, state: ConversationState) -> dict
             if not args.get("color"):
                 color_match = re.search(r'\b(blue|maroon|black|white|beige|grey|gray|red|navy|green|brown|khaki)\b', last_user_msg, re.IGNORECASE)
                 if color_match:
-                    args["color"] = color_match.group(1).capitalize()
+                    args["color"] = normalize_color_name(color_match.group(1))
 
-    if intent.selected_product_index is not None:
+    # Numbered Option Choice Disambiguation: Check if the last assistant message asked a numbered question for size or color
+    last_assistant_msg = next((m.get("content", "") for m in reversed(state.message_history) if m.get("role") == "assistant"), "")
+    if last_assistant_msg and intent.selected_product_index is not None:
+        num = intent.selected_product_index
+        option_match = re.search(rf'^{num}\.\s*([A-Za-z0-9\s]+)', last_assistant_msg, re.MULTILINE)
+        if option_match:
+            choice_val = option_match.group(1).strip()
+            norm_choice = choice_val.lower().replace('.', '')
+            if norm_choice in ["s", "m", "l", "xl", "xxl", "3xl", "small", "medium", "large", "extra large"]:
+                args["size"] = normalize_size_label(norm_choice)
+                args.pop("selected_product_index", None)
+            elif norm_choice in ["blue", "maroon", "black", "white", "beige", "grey", "gray", "red", "navy", "green", "brown", "khaki"]:
+                args["color"] = normalize_color_name(norm_choice)
+                args.pop("selected_product_index", None)
+
+    if intent.selected_product_index is not None and "selected_product_index" in args:
         args["selected_product_index"] = intent.selected_product_index
         if 1 <= intent.selected_product_index <= len(state.displayed_products):
             args["product_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
             args["item_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
+
+    # If state has an active focused product, default product_id to focused product
+    if not args.get("product_id") and state.selected_product_id:
+        args["product_id"] = state.selected_product_id
 
     if intent.quantity:
         args["quantity"] = intent.quantity

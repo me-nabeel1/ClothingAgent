@@ -109,10 +109,20 @@ class SingleAgent:
         step_results = []
         for step in plan.steps:
             state.current_intent = step.intent.intent
+            logger.info(
+                f"[STEP EXECUTION INITIATED] Executing plan step '{step.step_id}' with intent '{step.intent.intent}'",
+                extra={
+                    "step_id": step.step_id,
+                    "intent": step.intent.intent,
+                    "user_message": user_message,
+                }
+            )
+
             # Check dependency verification
             if step.depends_on:
                 verify_flag = next((s.verify for s in plan.steps if s.step_id == step.depends_on), None)
                 if not self._verify_postcondition(verify_flag, state):
+                    logger.warning(f"[STEP SKIPPED] Step {step.step_id} skipped due to failed dependency verification for {step.depends_on}")
                     step_results.append(f"Step {step.step_id} ({step.intent.intent}) skipped because dependency {step.depends_on} failed verification.")
                     continue
 
@@ -123,6 +133,7 @@ class SingleAgent:
 
             # Execute tool for intent
             result = await self._execute_intent(step.intent, state, context)
+            logger.info(f"[STEP COMPLETED] Step '{step.step_id}' ({step.intent.intent}) completed successfully", extra={"step_id": step.step_id, "intent": step.intent.intent})
             step_results.append(f"Step {step.step_id} ({step.intent.intent}) result:\n{result}")
 
             # Filter cards to selected indices if user shortlisted/selected specific products
