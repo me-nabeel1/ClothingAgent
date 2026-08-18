@@ -55,8 +55,14 @@ class CatalogToolsMixin:
         if getattr(payload, "seasons", None) is not None: state.seasons = payload.seasons
         if getattr(payload, "branch", None) is not None: state.branch_preference = payload.branch
         if getattr(payload, "sizes", None) is not None:
-            for k, v in payload.sizes.items():
-                state.size_preferences[k] = v
+            sizes_val = payload.sizes
+            if isinstance(sizes_val, dict):
+                for k, v in sizes_val.items():
+                    state.size_preferences[k] = v
+            elif isinstance(sizes_val, list) and sizes_val:
+                state.size_preferences["general"] = str(sizes_val[0])
+            elif isinstance(sizes_val, str) and sizes_val.strip():
+                state.size_preferences["general"] = sizes_val.strip()
         if getattr(payload, "budget", None) is not None:
             if payload.budget.minimum is not None: state.budget.minimum = payload.budget.minimum
             if payload.budget.maximum is not None: state.budget.maximum = payload.budget.maximum
