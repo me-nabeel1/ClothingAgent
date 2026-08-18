@@ -67,8 +67,8 @@ class CatalogRepository:
                                 func.lower(Category.category_code) == "shirts",
                                 func.lower(Category.category_name).contains("shirt"),
                             ),
-                            func.lower(Category.category_name).not_contains("t-shirt"),
-                            func.lower(Category.category_code).not_contains("tshirt"),
+                            ~func.lower(Category.category_name).contains("t-shirt"),
+                            ~func.lower(Category.category_code).contains("tshirt"),
                         )
                     ]
                 elif clean_term in ("pant", "pants"):
