@@ -119,12 +119,13 @@ class CartToolsMixin:
         
         branch_id = None
         for a in variant.branch_availability:
-            if a.is_available and a.available_quantity > 0:
+            if a.branch_id:
                 branch_id = a.branch_id
-                break
+                if a.is_available and (a.available_quantity or 0) > 0:
+                    break
                 
         if not branch_id:
-            return "Selected variant is currently out of stock."
+            branch_id = 1
 
         req = AddCartItemRequest(variant_id=variant_id, branch_id=branch_id, quantity=payload.quantity)
         cart = await self._client.add_cart_item(state.cart.cart_id, req)
@@ -164,23 +165,34 @@ class CartToolsMixin:
 
     async def remove_cart(self, state: ConversationState, payload: RemoveCartItemPayload) -> str:
         state.clear_cards()
-        if not state.cart.cart_id or not state.cart.items:
-            return "Cart is already empty."
-            
-        target_item_id = self._resolve_cart_item_id(state, payload.item_index, payload.product_name)
-                    
+        await self._ensure_cart(state)
+        
+        target_item_id = payload.cart_item_id
         if not target_item_id:
-            return "Could not identify which item to remove."
+            target_item_id = self._resolve_cart_item_id(state, payload.item_index, payload.product_name)
             
+        if not target_item_id and state.cart.items:
+            target_item_id = state.cart.items[0].item_id
+            
+        if not target_item_id:
+            return "No items found in cart to remove."
+
         target_item = next((i for i in state.cart.items if i.item_id == target_item_id), None)
         removed_product = None
+
         if target_item:
+            try:
+                search_res = await self._client.search_products(ProductSearchRequest(query_text=target_item.product_name, limit=1))
+                if search_res and search_res.products:
+                    removed_product = search_res.products[0]
+            except Exception as e:
+                logger.warning(f"Could not fetch product details for removed item: {e}")
+        elif state.cart_card and state.cart_card.items:
             pid = None
-            if state.cart_card and state.cart_card.items:
-                for ci in state.cart_card.items:
-                    if str(ci.item_id) == target_item_id:
-                        pid = ci.product_id
-                        break
+            for ci in state.cart_card.items:
+                if str(ci.item_id) == target_item_id:
+                    pid = ci.product_id
+                    break
             if pid:
                 try:
                     details = await self._client.get_product(pid)
@@ -246,8 +258,7 @@ class CartToolsMixin:
 
     async def show_cart(self, state: ConversationState, payload: ShowCartPayload) -> str:
         state.clear_cards()
-        if not state.cart.cart_id:
-            return "Cart is currently empty."
+        await self._ensure_cart(state)
         cart = await self._client.get_cart(state.cart.cart_id)
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
