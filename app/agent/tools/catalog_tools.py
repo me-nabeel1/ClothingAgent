@@ -153,8 +153,18 @@ class CatalogToolsMixin:
             response.products = response.products[:limit]
             response.result_count = len(response.products)
 
-        state.record_displayed_products(response.products)
-        state.product_cards = [ProductCard(product=p) for p in response.products]
+        query_text = (query_val or "").lower()
+        is_general_query = any(phrase in query_text for phrase in [
+            "what products", "what categories", "what do you sell", "what items", "what collection",
+            "show products", "show categories", "tell me about", "what styles", "what outfits"
+        ])
+        
+        if is_general_query and not categories_val and not state.categories and not state.preferred_colors and not state.size_preferences:
+            state.displayed_products.clear()
+            state.product_cards.clear()
+        else:
+            state.record_displayed_products(response.products)
+            state.product_cards = [ProductCard(product=p) for p in response.products]
         
         if not response.products:
             return "No products found matching the criteria."

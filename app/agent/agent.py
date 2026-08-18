@@ -120,18 +120,24 @@ class SingleAgent:
 
         # General chat, greetings, store overviews, and general inquiries MUST NEVER show product cards
         is_general_turn = state.current_intent in [
-            "general_chat", "greeting", "general_inquiry", "store_overview", "faq", "general", "reset_session", "clear_preferences"
+            "general_chat", "greeting", "general_inquiry", "store_overview", "faq", "general",
+            "reset_session", "clear_preferences", "concierge_greeting"
         ]
 
-        # Check if reply is a broad category clarification follow-up question
-        is_clarification_reply = any(
-            phrase in cleaned_text.lower()
+        text_lower = cleaned_text.lower()
+        is_general_prompt_or_overview = any(
+            phrase in text_lower
             for phrase in [
-                "what kind of", "what style of", "which type of", "which style", "what type",
+                "what style or outfit", "what style are you", "what kind of", "what style of",
+                "which type of", "which style", "what type", "which category or specific look",
+                "interests you, and i will present", "as your personal ai sales concierge",
+                "our current collection includes", "let me know which category",
+                "elevate your personality", "boost your confidence",
                 "کس قسم کی", "کون سا اسٹائل", "کون سی شرٹ", "کون سا انداز", "کون سی پینٹ", "کون سے کپڑے"
             ]
         )
-        if is_general_turn or is_clarification_reply:
+
+        if is_general_turn or is_general_prompt_or_overview:
             state.displayed_products.clear()
             state.product_cards.clear()
         else:

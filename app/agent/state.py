@@ -498,6 +498,12 @@ class ConversationState(BaseModel):
             self.displayed_products = []
             return
 
+        text_lower = (reply or "").lower()
+        if any(phrase in text_lower for phrase in ["what style or outfit", "which category or specific look", "elevate your personality", "our current collection includes", "let me know which category"]):
+            self.product_cards = []
+            self.displayed_products = []
+            return
+
         import re
         reply_lower = reply.lower()
 
