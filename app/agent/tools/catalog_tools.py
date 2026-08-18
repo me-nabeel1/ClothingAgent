@@ -162,9 +162,21 @@ class CatalogToolsMixin:
         query_text = (query_val or "").lower()
         is_general_query = any(phrase in query_text for phrase in [
             "what products", "what categories", "what do you sell", "what items", "what collection",
-            "show products", "show categories", "tell me about", "what styles", "what outfits"
+            "show products", "show categories", "tell me about", "what styles", "what outfits",
+            "store offerings", "categories", "what do you have", "what you have", "discounts", "offers",
+            "what we have"
         ])
-        
+
+        if is_general_query or query_text in ("categories", "store offerings", "what do you have", "what you have", "what we have"):
+            state.displayed_products.clear()
+            state.product_cards.clear()
+            return (
+                "GENERAL STORE INQUIRY RESPONSE:\n"
+                "We offer a wide range of premium apparel across our collections (Men's & Women's Wear, T-Shirts, Shirts, Pants, Activewear, Jackets) with handsome discounts right now!\n"
+                "If you want, I can tell you how you can get your favorite product and can help you to get maximum discounts we are offering right now.\n"
+                "INSTRUCTION: Politely reply explaining our products and active handsome discounts. Offer to help the customer find their favorite product and get maximum discounts, and ask which category or style they would like to explore today. DO NOT output any product cards."
+            )
+
         if not response.products:
             return "No products found matching the criteria."
 
