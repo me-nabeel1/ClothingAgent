@@ -382,7 +382,12 @@ class CatalogToolsMixin:
                 p = details.product
                 detailed_products.append(p)
                 price_int = int(float(p.final_price)) if p.final_price is not None else 0
-                line_entry = [f"Details for {p.product_name}:", f"Price: {price_int} rupees.", f"Description: {p.description or 'N/A'}."]
+                line_entry = [
+                    f"Product Details:",
+                    f"- Name: {p.product_name}.",
+                    f"- Price: {price_int} rupees.",
+                    f"- Description: {p.description or 'N/A'}.",
+                ]
                 
                 if p.variants:
                     all_avail = [v for v in p.variants if v.is_available]
@@ -396,11 +401,11 @@ class CatalogToolsMixin:
                     ]
 
                     if exact_matches:
-                        line_entry.append("Status: Available for online ordering.")
+                        line_entry.append("- Status: Available for online ordering.")
                         if req_color and req_size:
-                            line_entry.append(f"Requested Variant ({req_color} size {req_size}): IN STOCK for nationwide delivery.")
-                        line_entry.append(f"Available Colors: {', '.join(all_colors) if all_colors else 'None'}")
-                        line_entry.append(f"Available Sizes: {', '.join(all_sizes) if all_sizes else 'None'}")
+                            line_entry.append(f"- Requested Variant ({req_color}, Size {req_size}): IN STOCK.")
+                        line_entry.append(f"- Available Colors: {', '.join(all_colors) if all_colors else 'None'}.")
+                        line_entry.append(f"- Available Sizes: {', '.join(all_sizes) if all_sizes else 'None'}.")
                     else:
                         same_size_avail = [
                             v for v in all_avail

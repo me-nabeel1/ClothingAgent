@@ -102,12 +102,27 @@ class CartToolsMixin:
             if state:
                 state.record_displayed_products([details.product])
                 state.product_cards = [ProductCard(product=details.product)]
-            return (
-                f"Cannot add {details.product.product_name} to cart directly because variant selection (color and size) is required.\n"
-                f"Available Colors: {', '.join(colors) if colors else 'None'}\n"
-                f"Available Sizes: {', '.join(sizes) if sizes else 'None'}\n"
-                "INSTRUCTION: Politely and professionally ask the user which color and size they prefer from the available options before adding to cart."
-            )
+                state.selected_product_id = details.product.product_id
+
+            if req_size and not req_color:
+                return (
+                    f"Selected Size: {req_size} for {details.product.product_name}.\n"
+                    f"Available Colors: {', '.join(colors) if colors else 'None'}.\n"
+                    f"INSTRUCTION: Politely ask the customer to select their preferred color for size {req_size} from the available colors before adding to bag."
+                )
+            elif req_color and not req_size:
+                return (
+                    f"Selected Color: {req_color} for {details.product.product_name}.\n"
+                    f"Available Sizes: {', '.join(sizes) if sizes else 'None'}.\n"
+                    f"INSTRUCTION: Politely ask the customer to select their preferred size for color {req_color} from the available sizes before adding to bag."
+                )
+            else:
+                return (
+                    f"Cannot add {details.product.product_name} to cart directly because variant selection (color and size) is required.\n"
+                    f"Available Colors: {', '.join(colors) if colors else 'None'}.\n"
+                    f"Available Sizes: {', '.join(sizes) if sizes else 'None'}.\n"
+                    "INSTRUCTION: Politely and professionally ask the user which color and size they prefer from the available options before adding to bag."
+                )
 
         matching_variants = self._get_matching_variants(details.product.variants, req_color, req_size)
             

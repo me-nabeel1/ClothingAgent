@@ -158,16 +158,26 @@ VARIANT_SELECTION_TOKENS = {
     "s", "m", "l", "xl", "xxl", "3xl", "small", "medium", "large", "extra large", "x-large", "double xl", "2xl", "3xl",
     "اسمال", "میڈیم", "لارج", "بڑا", "درمیانہ", "چھوٹا", "ایکسٹرا لارج", "ڈبل ایکسٹرا لارج",
     "blue", "maroon", "black", "white", "beige", "grey", "gray", "red", "navy", "green", "brown", "khaki", "pink", "yellow", "purple", "orange",
-    "نیلا", "نیلی", "عنابی", "سرخ", "کالا", "کالی", "سیاہ", "سفید", "بیج", "گری", "سرمئی", "لال", "نیوی", "نیوی بلیو", "ہرا", "سبز", "براؤن", "بھورا", "خاکی", "گلابی", "پیلا", "پیلی", "جامنی", "نارنجی",
+    "نیلا", "نیلی", "عنابی", "مہرون", "مارون", "سرخ", "کالا", "کالی", "سیاہ", "سفید", "بیج", "گری", "سرمئی", "لال", "نیوی", "نیوی بلیو", "ہرا", "سبز", "براؤن", "بھورا", "خاکی", "گلابی", "پیلا", "پیلی", "جامنی", "نارنجی",
     "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "42", "44", "46",
-    "۲۸", "۲۹", "۳۰", "۳۱", "۳۲", "۳۳", "۳۴", "۳۵", "۳۶", "۳۷", "۳۸", "۳۹", "۴۰", "۴۲", "۴۴", "۴۶"
+    "۲۸", "۲۹", "۳۰", "۳۱", "۳۲", "۳۳", "۳۴", "۳۵", "۳۶", "۳۷", "۳۸", "۳۹", "۴۰", "۴۲", "۴۴", "۴۶",
+    "size", "color", "سائز", "کلر", "اس", "میں", "اور"
 }
 
 
 def is_variant_selection_reply(user_message: str) -> bool:
-    """Return True if user message consists primarily of variant parameters (color/size/numeric measurement)."""
+    """Return True if user message contains variant parameters (color/size/numeric measurement) for an active product."""
+    msg_lower = user_message.lower()
+    
+    # Check for any size or color mention in English or Urdu
+    size_found = bool(re.search(r'\b(s|m|l|xl|xxl|small|medium|large|اسمال|میڈیم|لارج|سائز|\d{2})\b', msg_lower))
+    color_found = bool(re.search(r'\b(blue|maroon|black|white|beige|grey|red|navy|green|brown|نیلا|عنابی|مہرون|مارون|سیاہ|سفید|نیوی|کلر)\b', msg_lower))
+    
+    if size_found or color_found:
+        return True
+        
     words = [w.strip().lower() for w in re.split(r'\s+|,', user_message) if w.strip()]
     if not words:
         return False
     matched = [w for w in words if w in VARIANT_SELECTION_TOKENS]
-    return len(matched) > 0 and (len(words) <= 4 or len(matched) / len(words) >= 0.5)
+    return len(matched) > 0 and (len(words) <= 5 or len(matched) / len(words) >= 0.3)
