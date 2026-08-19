@@ -82,8 +82,12 @@ class CatalogToolsMixin:
             limit = max(6, 3 * len(cats))
             limit = min(limit, 20)
 
+        sq = getattr(payload, "search_query", None)
+        if state.categories and sq:
+            sq = None
+
         request = ProductSearchRequest(
-            query_text=getattr(payload, "search_query", None),
+            query_text=sq,
             categories=state.categories,
             product_types=state.product_types,
             occasions=state.occasions,

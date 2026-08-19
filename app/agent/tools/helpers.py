@@ -10,7 +10,7 @@ def normalize_category_name(raw: str) -> str:
         return ""
     if any(k in raw_lower for k in ["t-shirt", "tshirt", "t shirt", "tee", "ٹی شرٹ", "ٹی شرٹس", "ٹی شرٹں"]):
         return "T-Shirts"
-    elif "polo" in raw_lower or "پولو" in raw_lower:
+    elif any(k in raw_lower for k in ["polo", "پولو", "پولر", "poler", "polar"]):
         return "Polo Shirts"
     elif "active" in raw_lower or "ایکٹو" in raw_lower:
         return "Activewear"
@@ -26,7 +26,7 @@ def normalize_category_name(raw: str) -> str:
         return "Outerwear"
     elif any(k in raw_lower for k in ["traditional", "kurta", "shalwar", "شلوار", "کرتا", "روایتی"]):
         return "Traditional"
-    elif "jean" in raw_lower or "جینز" in raw_lower or "جین" in raw_lower:
+    elif "jean" in raw_lower or "جینز" in raw_lower or "جین" in raw_lower or "جیینز" in raw_lower:
         return "Jeans"
     return raw.strip().title()
 
@@ -36,28 +36,34 @@ def parse_categories_from_input(categories: Any = None, search_query: Optional[s
     if isinstance(categories, list):
         for item in categories:
             if isinstance(item, str):
-                parts = re.split(r",|\band\b|&|اور", item, flags=re.IGNORECASE)
+                parts = re.split(r",|\band\b|&|اور|\+", item, flags=re.IGNORECASE)
                 raw_items.extend(parts)
     elif isinstance(categories, str):
-        parts = re.split(r",|\band\b|&|اور", categories, flags=re.IGNORECASE)
+        parts = re.split(r",|\band\b|&|اور|\+", categories, flags=re.IGNORECASE)
         raw_items.extend(parts)
 
-    if not raw_items and search_query:
-        sq_lower = search_query.lower()
-        if any(k in sq_lower for k in ["t-shirt", "tshirt", "t shirt", "tee", "ٹی شرٹ", "ٹی شرٹس"]):
-            raw_items.append("T-Shirts")
-        elif "shirt" in sq_lower or "شرٹ" in sq_lower or "شرٹس" in sq_lower:
-            raw_items.append("Shirts")
-        if "trouser" in sq_lower or "ٹراؤزر" in sq_lower:
-            raw_items.append("Trousers")
-        if "pant" in sq_lower or "پینٹ" in sq_lower or "پینٹس" in sq_lower:
-            raw_items.append("Pants")
-        if any(k in sq_lower for k in ["hoodie", "jacket", "outerwear", "ہوڈی", "جیکٹ"]):
-            raw_items.append("Outerwear")
-        if any(k in sq_lower for k in ["traditional", "kurta", "shalwar", "شلوار", "کرتا"]):
-            raw_items.append("Traditional")
-        if "jean" in sq_lower or "جینز" in sq_lower:
+    text_to_parse = (search_query or "")
+    if isinstance(categories, str):
+        text_to_parse += " " + categories
+    elif isinstance(categories, list):
+        text_to_parse += " " + " ".join([c for c in categories if isinstance(c, str)])
+
+    if text_to_parse:
+        t_lower = text_to_parse.lower()
+        if any(k in t_lower for k in ["polo", "پولو", "پولر", "poler", "polar"]):
+            raw_items.append("Polo Shirts")
+        if any(k in t_lower for k in ["jean", "جینز", "جین", "جیینز"]):
             raw_items.append("Jeans")
+        if any(k in t_lower for k in ["t-shirt", "tshirt", "t shirt", "tee", "ٹی شرٹ", "ٹی شرٹس"]):
+            raw_items.append("T-Shirts")
+        if any(k in t_lower for k in ["trouser", "ٹراؤزر", "ٹراؤزرز"]):
+            raw_items.append("Trousers")
+        if any(k in t_lower for k in ["pant", "پینٹ", "پینٹس"]) and not any(k in t_lower for k in ["jean", "جینز", "ٹراؤزر"]):
+            raw_items.append("Pants")
+        if any(k in t_lower for k in ["hoodie", "jacket", "outerwear", "ہوڈی", "جیکٹ"]):
+            raw_items.append("Outerwear")
+        if any(k in t_lower for k in ["traditional", "kurta", "shalwar", "شلوار", "کرتا"]):
+            raw_items.append("Traditional")
 
     normalized: list[str] = []
     for raw in raw_items:
