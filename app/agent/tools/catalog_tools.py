@@ -160,6 +160,82 @@ class CatalogToolsMixin:
             response.result_count = len(response.products)
 
         query_text = (query_val or "").lower()
+
+        # Broad category clarification map
+        broad_category_keywords = {
+            "shirt": ["T-Shirts", "Casual Cotton Shirts", "Formal Dress Shirts", "Polo Shirts"],
+            "shirts": ["T-Shirts", "Casual Cotton Shirts", "Formal Dress Shirts", "Polo Shirts"],
+            "pant": ["Jeans", "Trousers", "Track Pants", "Shorts"],
+            "pants": ["Jeans", "Trousers", "Track Pants", "Shorts"],
+            "clothes": ["T-Shirts", "Casual Shirts", "Dress Shirts", "Pants", "Activewear", "Jackets"],
+            "clothing": ["T-Shirts", "Casual Shirts", "Dress Shirts", "Pants", "Activewear", "Jackets"],
+            "wear": ["T-Shirts", "Casual Shirts", "Dress Shirts", "Pants", "Activewear", "Jackets"],
+            "suit": ["Formal Suits", "Tracksuits", "Dress Shirts"],
+            "activewear": ["Track Pants", "Running Shorts", "Joggers", "Tracksuits"],
+            "outerwear": ["Fleece Jackets", "Hoodies", "Denim Jackets", "Sweatshirts"],
+            "jacket": ["Fleece Jackets", "Hoodies", "Denim Jackets", "Sweatshirts"],
+            "jackets": ["Fleece Jackets", "Hoodies", "Denim Jackets", "Sweatshirts"],
+        }
+        
+        specific_subcategories = {
+            "t-shirts", "t-shirt", "tshirt", "tshirts", "polo shirts", "polo shirt",
+            "casual cotton shirts", "formal dress shirts", "jeans", "trousers",
+            "running shorts", "track pants", "joggers", "fleece jackets", "hoodies", "denim jackets"
+        }
+        
+        has_specific_category = any(
+            c.lower().strip() in specific_subcategories for c in (state.categories or [])
+        )
+
+        has_specific_filter = bool(
+            getattr(payload, "colors", None) or
+            getattr(payload, "sizes", None) or
+            getattr(payload, "specific_article", None) or
+            state.preferred_colors or
+            state.size_preferences or
+            has_specific_category
+        )
+        
+        matched_broad_key = None
+        for key in broad_category_keywords:
+            if re.search(rf"\b{key}\b", query_text):
+                matched_broad_key = key
+                break
+        if not matched_broad_key and state.categories and len(state.categories) == 1:
+            cat_name = state.categories[0].lower()
+            for key in broad_category_keywords:
+                if key in cat_name:
+                    matched_broad_key = key
+                    break
+
+        vague_phrases = [
+            "buy shirts", "want shirts", "need shirts", "show shirts", "buy clothes", "want clothes",
+            "buy pants", "want pants", "show pants", "buy activewear", "want activewear", "show clothes",
+            "i want shirts", "i want to buy shirts", "i want pants", "i want clothes", "i want clothing"
+        ]
+        
+        is_vague_query = any(p in query_text for p in vague_phrases) or query_text in ("shirts", "shirt", "pants", "pant", "clothes", "clothing", "wear")
+
+        if is_vague_query and not has_specific_filter and getattr(payload, "selected_product_index", None) is None:
+            subcats = "T-Shirts, Casual Cotton Shirts, Formal Dress Shirts, Polo Shirts, Jeans, Trousers, Track Pants, Shorts"
+            if "pant" in query_text:
+                subcats = "Jeans, Trousers, Track Pants, Shorts"
+            elif "shirt" in query_text:
+                subcats = "T-Shirts, Casual Cotton Shirts, Formal Dress Shirts, Polo Shirts"
+            elif "active" in query_text:
+                subcats = "Track Pants, Running Shorts, Joggers, Tracksuits"
+                
+            state.displayed_products.clear()
+            state.product_cards.clear()
+            return (
+                f"VAGUE CATEGORY INQUIRY DETECTED:\n"
+                f"Available subcategories/styles: {subcats}.\n"
+                "INSTRUCTION: Do NOT assume or hallucinate the customer's intent and DO NOT output product cards.\n"
+                "Reply professionally listing these available subcategories/styles and ask a clarifying question:\n"
+                f"English Example: 'In our collection, we have {subcats} available. If you tell me what specific style, color, size, or occasion you prefer, I can bring the best match for you!'\n"
+                "Urdu Script Example: 'ہماری کلیکشن میں یہ تمام اسٹائلز موجود ہیں۔ اگر آپ مجھے اپنا پسندیدہ اسٹائل، رنگ، سائز یا موقع بتائیں تو میں آپ کے لیے بہترین انتخاب لاتا ہوں!'"
+            )
+
         is_general_query = any(phrase in query_text for phrase in [
             "what products", "what categories", "what do you sell", "what items", "what collection",
             "show products", "show categories", "tell me about", "what styles", "what outfits",
