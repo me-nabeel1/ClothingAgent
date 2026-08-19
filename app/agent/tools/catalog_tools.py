@@ -270,18 +270,17 @@ class CatalogToolsMixin:
         state.record_displayed_products(final_products)
         state.product_cards = [ProductCard(product=p) for p in final_products]
 
-        lines = ["Here are the available options matching your request (up to 3 options per category/style):"]
+        lines = ["Okay, here are some products for you. Check from these or tell me if you want more options."]
         opt_idx = 1
         for cat_key, items in grouped_products.items():
-            lines.append(f"\n--- {cat_key.title()} Options ---")
+            if len(grouped_products) > 1:
+                lines.append(f"\n--- {cat_key.title()} ---")
             for p in items:
                 price_int = int(float(p.final_price)) if p.final_price is not None else 0
-                colors_str = ", ".join(sorted(list(set(v.color for v in p.variants if v.is_available)))) if p.variants else "Various"
-                sizes_str = ", ".join(sorted(list(set(v.size for v in p.variants if v.is_available)))) if p.variants else "Various"
-                lines.append(f"Option {opt_idx}: {p.product_name} - {price_int} rupees (Colors: {colors_str} | Sizes: {sizes_str})")
+                lines.append(f"{opt_idx} {p.product_name} - {price_int} rupees.")
                 opt_idx += 1
                 
-        lines.append("\nINSTRUCTION: Present these options to the customer clearly grouped by category/style. Conclude by asking a warm follow-up: 'Please let me know your preference for color, size, or occasion so I can bring options tailored specifically to your style and preference, or add them to your bag!'")
+        lines.append("\nINSTRUCTION: Present these products briefly and concisely. Start with 'Okay, here are some products for you. Check from these or tell me if you want more.' (or Urdu: 'ٹھیک ہے، یہاں آپ کے لیے کچھ مصنوعات موجود ہیں۔ ان میں سے دیکھیں یا مجھے بتائیں اگر آپ مزید دیکھنا چاہتے ہیں۔'). Format each option strictly as '[Number] [Product Name] - [Price] rupees.' (or Urdu '[Number] [Product Name] - [Price] روپے.') with NO period directly after the option number digit. End each option line with a period so TTS reads it smoothly without breakage. DO NOT include color or size lists or extra details in option lines. Keep focus strictly on Menswear.")
         return "\n".join(lines)
 
     async def get_details(self, arg1: Any, arg2: Any = None) -> Any:
