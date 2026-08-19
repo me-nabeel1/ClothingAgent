@@ -97,13 +97,23 @@ class SingleAgent:
                 logger.error("fallback_llm_tool_turn_failed", extra={"error": str(fallback_exc)})
                 return await self._local_rule_fallback(user_message, state, context)
 
-        # 2b. Context Sanitizer: If state has a focused product and user provided a variant selection (e.g. "blue large", "L"), convert any 'search' intent to 'add_to_cart'
-        from app.agent.tools.helpers import is_variant_selection_reply
+        # 2b. Context Sanitizer: If state has a focused product and user provided a variant selection (e.g. "blue large", "L", "براؤن کلر"), convert any 'search' intent to 'add_to_cart'
+        from app.agent.tools.helpers import is_variant_selection_reply, parse_colors_from_message, parse_sizes_from_message
         if (state.selected_product_id or state.displayed_products) and is_variant_selection_reply(user_message):
             for step in plan.steps:
                 if step.intent.intent == "search":
                     logger.info("sanitizing_search_intent_to_add_to_cart", extra={"product_id": state.selected_product_id})
                     step.intent.intent = "add_to_cart"
+                    if not step.intent.search_overrides:
+                        step.intent.search_overrides = ExtractedFilters()
+                    
+                    colors_extracted = parse_colors_from_message(user_message)
+                    if colors_extracted:
+                        step.intent.search_overrides.colors = colors_extracted
+                        
+                    sizes_extracted = parse_sizes_from_message(user_message)
+                    if sizes_extracted:
+                        step.intent.search_overrides.sizes = sizes_extracted
 
         # 3. Execute plan sequentially
         step_results = []

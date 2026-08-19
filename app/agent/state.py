@@ -220,7 +220,7 @@ class ConversationState(BaseModel):
             self.order_confirmed = delta["order_confirmed"]
             
     def record_displayed_products(self, products: list[Any]) -> None:
-        """Record products recently shown to the customer."""
+        """Record products recently shown to the customer and update active selected product context."""
         self.displayed_products = []
         for p in products:
             available_colors = set()
@@ -242,6 +242,8 @@ class ConversationState(BaseModel):
                 )
             )
             self.seen_product_ids.add(p.product_id)
+        if self.displayed_products:
+            self.selected_product_id = self.displayed_products[0].product_id
         
     def clear_search_preferences(self) -> None:
         """Clear ephemeral search constraints (useful after switching topics)."""
