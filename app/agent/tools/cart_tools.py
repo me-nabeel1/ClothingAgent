@@ -89,6 +89,15 @@ class CartToolsMixin:
         req_color = payload.color
         req_size = payload.size
 
+        # Auto-resolve missing variant choices from displayed product card ONLY if single variant exists
+        if state and state.displayed_products:
+            disp = next((dp for dp in state.displayed_products if dp.product_id == product_id), None)
+            if disp:
+                if not req_color and len(disp.available_colors) == 1:
+                    req_color = disp.available_colors[0]
+                if not req_size and len(disp.available_sizes) == 1:
+                    req_size = disp.available_sizes[0]
+
         if not req_color and state.preferred_colors:
             req_color = state.preferred_colors[0]
 

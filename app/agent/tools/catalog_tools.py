@@ -88,6 +88,10 @@ class CatalogToolsMixin:
         if state.categories and sq:
             sq = None
 
+        # Flush seen_product_ids on new search queries to prevent old state filtering anomalies
+        if payload and (getattr(payload, "categories", None) or sq):
+            state.seen_product_ids.clear()
+
         request = ProductSearchRequest(
             query_text=sq,
             categories=state.categories,
@@ -96,7 +100,7 @@ class CatalogToolsMixin:
             colors=state.preferred_colors,
             excluded_colors=state.excluded_colors,
             size_mapping=state.size_preferences,
-            excluded_product_ids=list(state.seen_product_ids),
+            excluded_product_ids=[],
             materials=state.materials,
             fits=state.fits,
             seasons=state.seasons,

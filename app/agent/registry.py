@@ -61,14 +61,17 @@ def register_all_tools(tools_instance: Any) -> None:
     from app.agent.state import ConversationState
 
     def resolve_product_id(state: ConversationState, args: dict) -> Any:
-        product_id = args.get("product_id") or state.selected_product_id
-        if not product_id and args.get("selected_product_index") is not None:
-            idx = args.get("selected_product_index")
+        idx = args.get("selected_product_index")
+        if idx is not None and isinstance(idx, int) and state.displayed_products:
             if 1 <= idx <= len(state.displayed_products):
-                product_id = state.displayed_products[idx - 1].product_id
-        if not product_id and state.displayed_products:
-            product_id = state.displayed_products[0].product_id
-        return product_id
+                return state.displayed_products[idx - 1].product_id
+        if args.get("product_id"):
+            return args.get("product_id")
+        if state.selected_product_id:
+            return state.selected_product_id
+        if state.displayed_products:
+            return state.displayed_products[0].product_id
+        return None
 
     # ------------------------------------------------------------------
     # Each entry: (canonical_name, payload_model, handler, kwargs, aliases)
