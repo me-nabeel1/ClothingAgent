@@ -144,7 +144,8 @@ class SingleAgent:
             # Execute tool for intent
             result = await self._execute_intent(step.intent, state, context)
             logger.info(f"[STEP COMPLETED] Step '{step.step_id}' ({step.intent.intent}) completed successfully", extra={"step_id": step.step_id, "intent": step.intent.intent})
-            step_results.append(f"Step {step.step_id} ({step.intent.intent}) result:\n{result}")
+            if result:
+                step_results.append(result)
 
             # Filter cards to selected indices if user shortlisted/selected specific products
             selected_indices = getattr(step.intent, "selected_product_indices", [])

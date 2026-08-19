@@ -101,7 +101,8 @@ def clean_reply_formatting(reply: str) -> str:
     reply = re.sub(r'~+([^~]+)~+', r'\1', reply)
     reply = re.sub(r'^\s*[\*\-\+]\s+', '', reply, flags=re.MULTILINE)
 
-    # 9. Strip any raw JSON code blocks or action payloads if LLM generated them in text
+    # 9. Strip any raw JSON code blocks, action payloads, or step debug headers if present
+    reply = re.sub(r'Step\s+[a-zA-Z0-9_]+\s*\([^)]*\)\s*result:\s*', '', reply)
     reply = re.sub(r'```(?:json)?\s*\{[\s\S]*?\}\s*```', '', reply)
     reply = re.sub(r'\{\s*"(?:action|product_name|intent|color|size|quantity)"\s*:[\s\S]*?\}', '', reply)
     reply = re.sub(r'\n{3,}', '\n\n', reply).strip()
