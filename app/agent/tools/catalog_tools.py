@@ -10,6 +10,8 @@ from app.agent.tools.helpers import parse_categories_from_input
 from app.clients.clothing_app.client import ClothingAppClient
 from app.clients.clothing_app.schemas import ProductSearchRequest
 
+from app.agent.utils import detect_input_language
+
 logger = logging.getLogger(__name__)
 
 
@@ -292,18 +294,16 @@ class CatalogToolsMixin:
         state.record_displayed_products(final_products)
         state.product_cards = [ProductCard(product=p) for p in final_products]
 
-        lines = ["Okay, here are some products for you. Check from these or tell me if you want more options."]
-        opt_idx = 1
-        for cat_key, items in grouped_products.items():
-            if len(grouped_products) > 1:
-                lines.append(f"\n--- {cat_key.title()} ---")
-            for p in items:
-                price_int = int(float(p.final_price)) if p.final_price is not None else 0
-                lines.append(f"{opt_idx} {p.product_name} - {price_int} rupees.")
-                opt_idx += 1
-                
-        lines.append("\nINSTRUCTION: Present these products briefly and concisely. Start with 'Okay, here are some products for you. Check from these or tell me if you want more.' (or Urdu: 'ٹھیک ہے، یہاں آپ کے لیے کچھ مصنوعات موجود ہیں۔ ان میں سے دیکھیں یا مجھے بتائیں اگر آپ مزید دیکھنا چاہتے ہیں۔'). Format each option strictly as '[Number] [Product Name] - [Price] rupees.' (or Urdu '[Number] [Product Name] - [Price] روپے.') with NO period directly after the option number digit. End each option line with a period so TTS reads it smoothly without breakage. DO NOT include color or size lists or extra details in option lines. Keep focus strictly on Menswear.")
-        return "\n".join(lines)
+        # Detect user language
+        last_user_msg = ""
+        for msg in reversed(state.message_history):
+            if msg.get("role") == "user":
+                last_user_msg = msg.get("content", "")
+                break
+        user_lang = detect_input_language(last_user_msg)
+
+        from app.agent.formatters import format_product_listing_schema
+        return format_product_listing_schema(grouped_products, user_lang=user_lang)
 
     async def get_details(self, arg1: Any, arg2: Any = None) -> Any:
         if isinstance(arg1, ConversationState):
@@ -441,7 +441,17 @@ class CatalogToolsMixin:
             state.record_displayed_products(detailed_products)
             state.product_cards = [ProductCard(product=p) for p in detailed_products]
             state.selected_product_id = detailed_products[0].product_id
-            return "\n\n".join(lines)
+
+            # Detect user language
+            last_user_msg = ""
+            for msg in reversed(state.message_history):
+                if msg.get("role") == "user":
+                    last_user_msg = msg.get("content", "")
+                    break
+            user_lang = detect_input_language(last_user_msg)
+
+            from app.agent.formatters import format_product_details_schema
+            return format_product_details_schema(detailed_products[0], user_lang=user_lang)
         return None
 
     async def get_products(self, state: ConversationState, payload: Optional[SearchProductsPayload] = None, limit_override: Optional[int] = None) -> Any:

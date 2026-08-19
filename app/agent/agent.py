@@ -231,7 +231,12 @@ class SingleAgent:
 
     async def _synthesize_reply(self, step_results: list[str], state: ConversationState, context: StoreContext) -> str:
         """Synthesize a natural language reply from the step results matching user input language and optimized for TTS playback."""
-        results_str = "\n\n---\n\n".join(step_results)
+        results_str = "\n\n".join(step_results)
+        
+        # Deterministic Schema Guard: If step results contain hardcoded schemas, return directly to preserve perfect layout
+        if results_str and any(marker in results_str for marker in ["----", "Product details:", "پروڈکٹ کی تفصیلات:"]):
+            return results_str
+
         store_ctx_str = format_store_context_str(context)
 
         # Detect language of last user message
