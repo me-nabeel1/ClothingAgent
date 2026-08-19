@@ -41,7 +41,7 @@ class CatalogRepository:
             Product.product_status == "ACTIVE",
             ProductVariant.is_active.is_(True),
             Branch.is_active.is_(True),
-            Product.gender.in_(["MEN", "UNISEX"]),
+            Product.gender == "MEN",
         ]
         if product_id is not None:
             conditions.append(Product.product_id == product_id)
@@ -351,7 +351,7 @@ class CatalogRepository:
             .where(
                 Product.product_id == product_id, 
                 Product.product_status == "ACTIVE",
-                Product.gender.in_(["MEN", "UNISEX"])
+                Product.gender == "MEN"
             )
             .limit(1)
         )
@@ -417,7 +417,7 @@ class CatalogRepository:
                 ProductVariant.variant_id == variant_id,
                 Branch.branch_id == branch_id,
                 Product.product_status == "ACTIVE",
-                Product.gender.in_(["MEN", "UNISEX"]),
+                Product.gender == "MEN",
                 ProductVariant.is_active.is_(True),
                 Branch.is_active.is_(True),
             )

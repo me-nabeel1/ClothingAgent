@@ -172,9 +172,9 @@ class CatalogToolsMixin:
             state.product_cards.clear()
             return (
                 "GENERAL STORE INQUIRY RESPONSE:\n"
-                "We offer a wide range of premium apparel across our collections (Men's & Women's Wear, T-Shirts, Shirts, Pants, Activewear, Jackets) with handsome discounts right now!\n"
+                "We offer a wide range of premium menswear apparel across our collections (T-Shirts, Shirts, Pants, Activewear, Jackets, Outerwear) with handsome discounts right now!\n"
                 "If you want, I can tell you how you can get your favorite product and can help you to get maximum discounts we are offering right now.\n"
-                "INSTRUCTION: Politely reply explaining our products and active handsome discounts. Offer to help the customer find their favorite product and get maximum discounts, and ask which category or style they would like to explore today. DO NOT output any product cards."
+                "INSTRUCTION: Politely reply explaining our premium menswear products and active handsome discounts. Explicitly keep focus ONLY on Men's clothing (never mention Women, Kids, or Unisex). Offer to help the customer find their favorite product and get maximum discounts, and ask which category or style they would like to explore today. DO NOT output any product cards."
             )
 
         if not response.products:
