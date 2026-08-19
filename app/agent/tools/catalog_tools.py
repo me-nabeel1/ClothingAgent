@@ -236,14 +236,32 @@ class CatalogToolsMixin:
                 "Urdu Script Example: 'ہماری کلیکشن میں یہ تمام اسٹائلز موجود ہیں۔ اگر آپ مجھے اپنا پسندیدہ اسٹائل، رنگ، سائز یا موقع بتائیں تو میں آپ کے لیے بہترین انتخاب لاتا ہوں!'"
             )
 
+        is_category_list_query = any(phrase in query_text for phrase in [
+            "categories", "category", "کیٹیگری", "کیٹیگریز", "what categories", "product categories"
+        ])
+        
+        if is_category_list_query:
+            state.displayed_products.clear()
+            state.product_cards.clear()
+            return (
+                "DYNAMIC CATEGORY LISTING RESPONSE:\n"
+                "In our menswear collection, we have the following product categories available:\n"
+                "1 T-Shirts & Polo Tees\n"
+                "2 Shirts (Casual & Formal)\n"
+                "3 Pants, Jeans & Trousers\n"
+                "4 Activewear & Shorts\n"
+                "5 Jackets & Outerwear\n\n"
+                "INSTRUCTION: Dynamically list these available menswear categories in the customer's language (English or Urdu script) as a clean numbered list (1, 2, 3, 4, 5 with NO period directly after the digit 1, 2, 3). Ask the customer which category or style they would like to explore today. DO NOT repeat general discount text and DO NOT output product cards."
+            )
+
         is_general_query = any(phrase in query_text for phrase in [
-            "what products", "what categories", "what do you sell", "what items", "what collection",
-            "show products", "show categories", "tell me about", "what styles", "what outfits",
-            "store offerings", "categories", "what do you have", "what you have", "discounts", "offers",
+            "what products", "what do you sell", "what items", "what collection",
+            "show products", "tell me about", "what styles", "what outfits",
+            "store offerings", "what do you have", "what you have", "discounts", "offers",
             "what we have"
         ])
 
-        if is_general_query or query_text in ("categories", "store offerings", "what do you have", "what you have", "what we have"):
+        if is_general_query or query_text in ("store offerings", "what do you have", "what you have", "what we have"):
             state.displayed_products.clear()
             state.product_cards.clear()
             return (
