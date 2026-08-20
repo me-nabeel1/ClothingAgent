@@ -13,12 +13,10 @@ from app.agent.schemas import (
     ClearCartPayload
 )
 from app.clients.clothing_app.client import ClothingAppClient
-from app.clients.clothing_app.schemas import AddCartItemRequest, UpdateCartItemRequest
+from app.clients.clothing_app.schemas import AddCartItemRequest, UpdateCartItemRequest, ProductSearchRequest
+from app.agent.tools.helpers import normalize_size_label, normalize_color_name, is_color_match, is_size_match
 
 logger = logging.getLogger(__name__)
-
-
-from app.agent.tools.helpers import normalize_size_label, normalize_color_name, is_color_match, is_size_match
 
 
 class CartToolsMixin:
@@ -30,7 +28,7 @@ class CartToolsMixin:
         """Create a cart for the session if it doesn't exist."""
         if not state.cart.cart_id:
             cart = await self._client.create_cart()
-            state.cart.cart_id = cart.cart_id
+            state.cart.cart_id = str(cart.cart_id)
             state.cart.item_count = cart.total_quantity
             state.cart.subtotal = float(cart.subtotal)
             state.cart.items = []
@@ -45,14 +43,22 @@ class CartToolsMixin:
             matching.append(v)
         return matching
 
-    def _resolve_cart_item_id(self, state: ConversationState, item_index: Optional[int], product_name: Optional[str]) -> Optional[str]:
+    def _resolve_cart_item_id(self, state: ConversationState, item_index: Optional[Any], product_name: Optional[str]) -> Optional[str]:
         if not state.cart.items:
             return None
-        if item_index is not None and 1 <= item_index <= len(state.cart.items):
-            return state.cart.items[item_index - 1].item_id
+            
+        if item_index is not None:
+            try:
+                idx = int(item_index)
+                if 1 <= idx <= len(state.cart.items):
+                    return state.cart.items[idx - 1].item_id
+            except (ValueError, TypeError):
+                pass
+
         if product_name:
+            pname_clean = product_name.lower().strip()
             for item in state.cart.items:
-                if product_name.lower() in item.product_name.lower():
+                if pname_clean in item.product_name.lower():
                     return item.item_id
         return None
 
@@ -60,14 +66,27 @@ class CartToolsMixin:
         state.clear_cards()
         await self._ensure_cart(state)
         
+        # 1. Resolve Product ID
         product_id = payload.product_id
+        
+        # Check selected product index if passed
         if not product_id and payload.selected_product_index is not None:
             try:
                 index = int(payload.selected_product_index)
-                if 1 <= index <= len(state.displayed_products):
+                if state.displayed_products and 1 <= index <= len(state.displayed_products):
                     product_id = state.displayed_products[index - 1].product_id
             except (ValueError, TypeError):
                 pass
+
+        # Check product name or search query if passed
+        if not product_id and (payload.product_name or payload.search_query):
+            query = payload.product_name or payload.search_query
+            try:
+                res = await self._client.search_products(ProductSearchRequest(query_text=query, limit=1))
+                if res and res.products:
+                    product_id = res.products[0].product_id
+            except Exception as e:
+                logger.warning(f"Failed product lookup by name '{query}': {e}")
             
         if not product_id:
             product_id = state.selected_product_id
@@ -79,20 +98,22 @@ class CartToolsMixin:
             state.selected_product_id = product_id
             
         if not product_id:
-            return "Cannot determine which product to add."
+            return "Cannot determine which product to add. Please specify a product."
             
+        # 2. Fetch Product Details
         details = await self._client.get_product(product_id)
         if not details or not details.product or not details.product.variants:
-            return "Product variants not available."
+            return "Product variants not available for this item."
 
-        in_stock_variants = [v for v in details.product.variants if v.is_available]
+        all_variants = details.product.variants
+        in_stock_variants = [v for v in all_variants if v.is_available]
         if not in_stock_variants:
-            in_stock_variants = details.product.variants
+            in_stock_variants = all_variants
 
         req_color = payload.color
         req_size = payload.size
 
-        # Auto-resolve missing variant choices from displayed product card ONLY if single variant exists
+        # 3. Auto-resolve missing color / size from active displayed product card
         if state and state.displayed_products:
             disp = next((dp for dp in state.displayed_products if dp.product_id == product_id), None)
             if disp:
@@ -141,16 +162,19 @@ class CartToolsMixin:
                     "INSTRUCTION: Politely and professionally ask the user which color and size they prefer from the available options before adding to bag."
                 )
 
-        matching_variants = self._get_matching_variants(details.product.variants, req_color, req_size)
-            
-        if not matching_variants:
-            return f"Variant not found for color {req_color} and size {req_size}."
-            
-        variant = matching_variants[0]
-        variant_id = variant.variant_id
+        matching = self._get_matching_variants(all_variants, req_color, req_size)
+        if matching:
+            target_variant = matching[0]
+        else:
+            target_variant = in_stock_variants[0]
+            req_color = target_variant.color
+            req_size = target_variant.size
+
+        variant_id = target_variant.variant_id
         
+        # 4. Resolve Branch ID
         branch_id = None
-        for a in variant.branch_availability:
+        for a in target_variant.branch_availability:
             if a.branch_id:
                 branch_id = a.branch_id
                 if a.is_available and (a.available_quantity or 0) > 0:
@@ -159,8 +183,21 @@ class CartToolsMixin:
         if not branch_id:
             branch_id = 1
 
-        req = AddCartItemRequest(variant_id=variant_id, branch_id=branch_id, quantity=payload.quantity)
-        cart = await self._client.add_cart_item(state.cart.cart_id, req)
+        qty = payload.quantity if (payload.quantity and payload.quantity > 0) else 1
+
+        # 5. Add to Cart via API Client
+        cart_uuid = state.cart.cart_id
+        if isinstance(cart_uuid, str):
+            try:
+                cart_uuid = UUID(cart_uuid)
+            except Exception:
+                pass
+
+        req = AddCartItemRequest(variant_id=variant_id, branch_id=branch_id, quantity=qty)
+        cart = await self._client.add_cart_item(cart_uuid, req)
+
+        # 6. Synchronize State
+        state.cart.cart_id = str(cart.cart_id)
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
         state.cart.items = [
@@ -182,12 +219,14 @@ class CartToolsMixin:
         if details and details.product:
             state.record_displayed_products([details.product])
             state.product_cards = [ProductCard(product=details.product)]
+
+        # 7. Format Output Response
         cart_item_lines = [
             f"{idx}. {item.product_name} – Color: {item.color}, Size: {item.size}, Quantity: {item.quantity}, Price: {int(float(item.unit_price))} rupees."
             for idx, item in enumerate(cart.items, 1)
         ]
         return (
-            f"Successfully added {payload.quantity}x {details.product.product_name} ({variant.color}, {variant.size}) to cart.\n\n"
+            f"Successfully added {qty}x {details.product.product_name} ({target_variant.color}, {target_variant.size}) to cart.\n\n"
             f"Updated Cart Contents ({cart.total_quantity} items total, Subtotal: {int(float(cart.subtotal))} rupees):\n"
             + "\n".join(cart_item_lines)
         )
@@ -233,7 +272,9 @@ class CartToolsMixin:
                 except Exception as e:
                     logger.warning(f"Could not fetch product details for removed item: {e}")
 
-        cart = await self._client.remove_cart_item(state.cart.cart_id, UUID(target_item_id))
+        cart_uuid = UUID(state.cart.cart_id) if isinstance(state.cart.cart_id, str) else state.cart.cart_id
+        cart = await self._client.remove_cart_item(cart_uuid, UUID(target_item_id))
+        state.cart.cart_id = str(cart.cart_id)
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
         state.cart.items = [
@@ -291,7 +332,9 @@ class CartToolsMixin:
     async def show_cart(self, state: ConversationState, payload: ShowCartPayload) -> str:
         state.clear_cards()
         await self._ensure_cart(state)
-        cart = await self._client.get_cart(state.cart.cart_id)
+        cart_uuid = UUID(state.cart.cart_id) if isinstance(state.cart.cart_id, str) else state.cart.cart_id
+        cart = await self._client.get_cart(cart_uuid)
+        state.cart.cart_id = str(cart.cart_id)
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
         state.cart.items = [
@@ -345,8 +388,10 @@ class CartToolsMixin:
             return "Could not find that item in the cart."
             
         req = UpdateCartItemRequest(quantity=payload.new_quantity)
-        cart = await self._client.update_cart_item(state.cart.cart_id, UUID(target_item_id), req)
+        cart_uuid = UUID(state.cart.cart_id) if isinstance(state.cart.cart_id, str) else state.cart.cart_id
+        cart = await self._client.update_cart_item(cart_uuid, UUID(target_item_id), req)
         
+        state.cart.cart_id = str(cart.cart_id)
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
         state.cart.items = [
@@ -372,8 +417,10 @@ class CartToolsMixin:
         if not state.cart.cart_id:
             return "Cart is already empty."
         
-        cart = await self._client.clear_cart(state.cart.cart_id)
+        cart_uuid = UUID(state.cart.cart_id) if isinstance(state.cart.cart_id, str) else state.cart.cart_id
+        cart = await self._client.clear_cart(cart_uuid)
         
+        state.cart.cart_id = str(cart.cart_id)
         state.cart.item_count = cart.total_quantity
         state.cart.subtotal = float(cart.subtotal)
         state.cart.items = []
@@ -384,3 +431,4 @@ class CartToolsMixin:
             subtotal=float(cart.subtotal)
         )
         return "Cart cleared."
+
