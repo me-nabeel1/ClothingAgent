@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .contracts import ToolName
+from app.agent.contracts import ToolName
 
 
 class CustomerPreferences(BaseModel):

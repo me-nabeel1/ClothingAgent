@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .contracts import RequirementCheckResult, ToolContract
+from app.agent.contracts import RequirementCheckResult, ToolContract
 
 
 class ToolRequirementChecker:
