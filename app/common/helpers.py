@@ -1,7 +1,9 @@
-"""Helper utilities for category normalization and input parsing."""
+"""Common helper utilities for category, size, and color normalization."""
+
+from __future__ import annotations
 
 import re
-from typing import Optional, Any
+from typing import Any, Optional
 
 
 def normalize_category_name(raw: str) -> str:
@@ -42,7 +44,7 @@ def parse_categories_from_input(categories: Any = None, search_query: Optional[s
         parts = re.split(r",|\band\b|&|اور|\+", categories, flags=re.IGNORECASE)
         raw_items.extend(parts)
 
-    text_to_parse = (search_query or "")
+    text_to_parse = search_query or ""
     if isinstance(categories, str):
         text_to_parse += " " + categories
     elif isinstance(categories, list):
@@ -73,6 +75,8 @@ def parse_categories_from_input(categories: Any = None, search_query: Optional[s
             if norm and norm not in normalized:
                 normalized.append(norm)
     return normalized
+
+
 # Multilingual size mapping covering standard international sizes, waist/chest numeric measurements, and Urdu script equivalents
 SIZE_DICTIONARY: dict[str, str] = {
     "xs": "XS", "extra small": "XS", "ایکٹرا سمال": "XS",
@@ -83,7 +87,7 @@ SIZE_DICTIONARY: dict[str, str] = {
     "xxl": "XXL", "xxlarge": "XXL", "double xl": "XXL", "2xl": "XXL", "ڈبل ایکسٹرا لارج": "XXL",
     "xxxl": "XXXL", "3xl": "XXXL", "triple xl": "XXXL", "ٹرپل ایکسٹرا لارج": "XXXL",
     "۲۸": "28", "۲۹": "29", "۳۰": "30", "۳۱": "31", "۳۲": "32", "۳۳": "33", "۳۴": "34", "۳۵": "35",
-    "۳۶": "36", "۳۷": "37", "۳۸": "38", "۳۹": "39", "۴۰": "40", "۴۲": "42", "۴۴": "44", "۴۶": "46"
+    "۳۶": "36", "۳۷": "37", "۳۸": "38", "۳۹": "39", "۴۰": "40", "۴۲": "42", "۴۴": "44", "۴۶": "46",
 }
 
 # Multilingual color dictionary mapping common color names across English and Urdu script to canonical color names
@@ -112,14 +116,14 @@ def normalize_size_label(raw: Any) -> str:
         return ""
     val_str = str(raw).strip()
     val_lower = val_str.lower()
-    
+
     if val_lower in SIZE_DICTIONARY:
         return SIZE_DICTIONARY[val_lower]
-        
-    num_match = re.search(r'\b([0-9]{2,3})\b', val_str)
+
+    num_match = re.search(r"\b([0-9]{2,3})\b", val_str)
     if num_match:
         return num_match.group(1)
-        
+
     return val_str.upper()
 
 
@@ -129,10 +133,10 @@ def normalize_color_name(raw: Any) -> str:
         return ""
     val_str = str(raw).strip()
     val_lower = val_str.lower()
-    
+
     if val_lower in COLOR_DICTIONARY:
         return COLOR_DICTIONARY[val_lower]
-        
+
     return val_str.title()
 
 
@@ -152,55 +156,3 @@ def is_size_match(size_a: Optional[str], size_b: Optional[str]) -> bool:
     norm_a = normalize_size_label(size_a)
     norm_b = normalize_size_label(size_b)
     return norm_a == norm_b
-
-
-VARIANT_SELECTION_TOKENS = {
-    "s", "m", "l", "xl", "xxl", "3xl", "small", "medium", "large", "extra large", "x-large", "double xl", "2xl", "3xl",
-    "اسمال", "میڈیم", "لارج", "بڑا", "درمیانہ", "چھوٹا", "ایکسٹرا لارج", "ڈبل ایکسٹرا لارج",
-    "blue", "maroon", "black", "white", "beige", "grey", "gray", "red", "navy", "green", "brown", "khaki", "pink", "yellow", "purple", "orange",
-    "نیلا", "نیلی", "عنابی", "مہرون", "مارون", "سرخ", "کالا", "کالی", "سیاہ", "سفید", "بیج", "گری", "سرمئی", "لال", "نیوی", "نیوی بلیو", "ہرا", "سبز", "براؤن", "بھورا", "خاکی", "گلابی", "پیلا", "پیلی", "جامنی", "نارنجی",
-    "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "42", "44", "46",
-    "۲۸", "۲۹", "۳۰", "۳۱", "۳۲", "۳۳", "۳۴", "۳۵", "۳۶", "۳۷", "۳۸", "۳۹", "۴۰", "۴۲", "۴۴", "۴۶",
-    "size", "color", "سائز", "کلر", "اس", "میں", "اور"
-}
-
-
-def parse_colors_from_message(message: str) -> list[str]:
-    """Extract and normalize all color tokens from a user message."""
-    found: list[str] = []
-    msg_lower = message.lower()
-    for token, norm in COLOR_DICTIONARY.items():
-        if re.search(rf'\b{re.escape(token)}\b', msg_lower):
-            if norm not in found:
-                found.append(norm)
-    return found
-
-
-def parse_sizes_from_message(message: str) -> list[str]:
-    """Extract and normalize all size tokens from a user message."""
-    found: list[str] = []
-    msg_lower = message.lower()
-    for token, norm in SIZE_DICTIONARY.items():
-        if re.search(rf'\b{re.escape(token)}\b', msg_lower):
-            if norm not in found:
-                found.append(norm)
-    return found
-
-
-def is_variant_selection_reply(user_message: str) -> bool:
-    """Return True if user message contains variant parameters (color/size/numeric measurement) for an active product."""
-    msg_clean = re.sub(r'^[اآیا]\s+', '', user_message.strip(), flags=re.IGNORECASE)
-    msg_lower = msg_clean.lower()
-    
-    # Check for any size or color mention in English or Urdu script
-    size_found = bool(re.search(r'\b(s|m|l|xl|xxl|3xl|small|medium|large|اسمال|میڈیم|لارج|سائز|\d{2})\b', msg_lower))
-    color_found = bool(re.search(r'\b(blue|maroon|black|white|beige|grey|gray|red|navy|green|brown|khaki|pink|yellow|purple|orange|نیلا|نیلی|عنابی|مہرون|مارون|سرخ|کالا|کالی|سیاہ|سفید|بیج|گری|سرمئی|لال|نیوی|ہرا|سبز|براؤن|بھورا|خاکی|گلابی|پیلا|پیلی|جامنی|نارنجی|کلر)\b', msg_lower))
-    
-    if size_found or color_found:
-        return True
-        
-    words = [w.strip().lower() for w in re.split(r'\s+|,', msg_clean) if w.strip()]
-    if not words:
-        return False
-    matched = [w for w in words if w in VARIANT_SELECTION_TOKENS]
-    return len(matched) > 0 and (len(words) <= 6 or len(matched) / len(words) >= 0.25)

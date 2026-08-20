@@ -236,7 +236,7 @@ class CatalogRepository:
                             )
                         )
                     else:
-                        from app.agent.tools.helpers import normalize_size_label, normalize_color_name
+                        from app.common.helpers import normalize_size_label, normalize_color_name
                         norm_sz = normalize_size_label(token)
                         norm_col = normalize_color_name(token)
                         
