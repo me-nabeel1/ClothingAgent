@@ -62,11 +62,18 @@ def register_all_tools(tools_instance: Any) -> None:
 
     def resolve_product_id(state: ConversationState, args: dict) -> Any:
         idx = args.get("selected_product_index")
-        if idx is not None and isinstance(idx, int) and state.displayed_products:
-            if 1 <= idx <= len(state.displayed_products):
-                return state.displayed_products[idx - 1].product_id
+        if idx is not None:
+            try:
+                idx_int = int(idx)
+                if state.displayed_products and 1 <= idx_int <= len(state.displayed_products):
+                    return state.displayed_products[idx_int - 1].product_id
+            except (ValueError, TypeError):
+                pass
         if args.get("product_id"):
-            return args.get("product_id")
+            try:
+                return int(args.get("product_id"))
+            except (ValueError, TypeError):
+                return args.get("product_id")
         if state.selected_product_id:
             return state.selected_product_id
         if state.displayed_products:

@@ -256,10 +256,14 @@ def args_from_intent(intent: StructuredIntent, state: ConversationState) -> dict
                 args.pop("selected_product_index", None)
 
     if intent.selected_product_index is not None and "selected_product_index" in args:
-        args["selected_product_index"] = intent.selected_product_index
-        if 1 <= intent.selected_product_index <= len(state.displayed_products):
-            args["product_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
-            args["item_id"] = state.displayed_products[intent.selected_product_index - 1].product_id
+        try:
+            idx_val = int(intent.selected_product_index)
+            args["selected_product_index"] = idx_val
+            if 1 <= idx_val <= len(state.displayed_products):
+                args["product_id"] = state.displayed_products[idx_val - 1].product_id
+                args["item_id"] = state.displayed_products[idx_val - 1].product_id
+        except (ValueError, TypeError):
+            pass
 
     # If state has an active focused product, default product_id to focused product
     if not args.get("product_id") and state.selected_product_id:

@@ -62,9 +62,12 @@ class CartToolsMixin:
         
         product_id = payload.product_id
         if not product_id and payload.selected_product_index is not None:
-            index = payload.selected_product_index
-            if 1 <= index <= len(state.displayed_products):
-                product_id = state.displayed_products[index - 1].product_id
+            try:
+                index = int(payload.selected_product_index)
+                if 1 <= index <= len(state.displayed_products):
+                    product_id = state.displayed_products[index - 1].product_id
+            except (ValueError, TypeError):
+                pass
             
         if not product_id:
             product_id = state.selected_product_id
@@ -103,6 +106,11 @@ class CartToolsMixin:
 
         if not req_size and state.size_preferences:
             req_size = list(state.size_preferences.values())[0]
+
+        if not req_color and len(in_stock_variants) == 1:
+            req_color = in_stock_variants[0].color
+        if not req_size and len(in_stock_variants) == 1:
+            req_size = in_stock_variants[0].size
 
         if not req_color or not req_size:
             logger.info("add_cart_item_missing_color_or_size", extra={"color": req_color, "size": req_size, "product_id": product_id})
@@ -179,7 +187,7 @@ class CartToolsMixin:
             for idx, item in enumerate(cart.items, 1)
         ]
         return (
-            f"Successfully added {payload.quantity}x {details.product.product_name} ({payload.color}, {payload.size}) to cart.\n\n"
+            f"Successfully added {payload.quantity}x {details.product.product_name} ({variant.color}, {variant.size}) to cart.\n\n"
             f"Updated Cart Contents ({cart.total_quantity} items total, Subtotal: {int(float(cart.subtotal))} rupees):\n"
             + "\n".join(cart_item_lines)
         )
