@@ -1,62 +1,29 @@
-"""Current prototype commerce API map used by the Agent integration boundary.
+"""Concrete endpoint map for the existing Northstar prototype APIs.
 
-This document-like module records the concrete endpoints already present in the
-current commerce application.  Phase 1 does not implement HTTP calls; it fixes
-semantic tool contracts first.  Phase 3 will implement the adapter against this
-map without changing the commerce API unless a genuine incompatibility is found.
+Phase 3 treats these routes as an external application contract. The Agent
+semantic contracts remain stable even if a future brand exposes different
+paths. Only this integration map/client should need adaptation.
 """
 
 from __future__ import annotations
 
 CURRENT_API_MAP: dict[str, dict[str, object]] = {
-    "get_products": {
-        "method": "POST",
-        "path": "/api/v1/products/search",
-        "notes": "Primary structured catalog search contract. Existing backend also exposes GET /api/v1/products for UI-style filtering.",
-    },
-    "get_product_details": {
-        "method": "GET",
-        "path": "/api/v1/products/{product_id}",
-        "notes": "Returns full product details and sellable branch options.",
-    },
-    "get_branches": {
-        "method": "GET",
-        "path": "/api/v1/branches",
-        "notes": "Customer-facing branch discovery; branch is optional for normal shopping.",
-    },
-    "check_availability": {
-        "method": "GET",
-        "path": "/api/v1/inventory/availability",
-        "notes": "Exact variant + branch availability. Branch is internal unless customer explicitly asks about a branch.",
-    },
-    "create_cart": {
-        "method": "POST",
-        "path": "/api/v1/cart",
-        "notes": "Path should be confirmed against the concrete router before Phase 3 implementation; existing repository reports a create-cart operation.",
-    },
-    "get_cart": {
-        "method": "GET",
-        "path": "/api/v1/cart/{cart_id}",
-        "notes": "Existing cart capability; exact route must be verified from current cart/api.py before wiring.",
-    },
-    "add_to_cart": {
-        "method": "POST",
-        "path": "/api/v1/cart/{cart_id}/items",
-        "notes": "Existing cart capability; exact route must be verified from current cart/api.py before wiring.",
-    },
-    "update_cart": {
-        "method": "PATCH",
-        "path": "/api/v1/cart/{cart_id}/items/{item_id}",
-        "notes": "Existing cart capability; exact route must be verified from current cart/api.py before wiring.",
-    },
-    "remove_from_cart": {
-        "method": "DELETE",
-        "path": "/api/v1/cart/{cart_id}/items/{item_id}",
-        "notes": "Existing cart capability; exact route must be verified from current cart/api.py before wiring.",
-    },
-    "clear_cart": {
-        "method": "DELETE",
-        "path": "/api/v1/cart/{cart_id}/items",
-        "notes": "Existing cart capability; exact route must be verified from current cart/api.py before wiring.",
+    "get_products": {"method": "POST", "path": "/api/v1/products/search"},
+    "get_product_details": {"method": "GET", "path": "/api/v1/products/{product_id}"},
+    "get_branches": {"method": "GET", "path": "/api/v1/branches"},
+    "check_availability": {"method": "GET", "path": "/api/v1/inventory/availability"},
+    "create_cart": {"method": "POST", "path": "/api/v1/carts"},
+    "get_cart": {"method": "GET", "path": "/api/v1/carts/{cart_id}"},
+    "add_to_cart": {"method": "POST", "path": "/api/v1/carts/{cart_id}/items"},
+    "update_cart": {"method": "PATCH", "path": "/api/v1/carts/{cart_id}/items/{item_id}"},
+    "remove_from_cart": {"method": "DELETE", "path": "/api/v1/carts/{cart_id}/items/{item_id}"},
+    "clear_cart": {"method": "DELETE", "path": "/api/v1/carts/{cart_id}/items"},
+    "preview_checkout": {"method": "POST", "path": "/api/v1/carts/{cart_id}/preview"},
+    "place_order": {"method": "POST", "path": "/api/v1/orders"},
+    "get_store_context": {
+        "method": None,
+        "path": None,
+        "status": "not_exposed_by_current_main_branch_api",
+        "notes": "Do not invent an endpoint. Derive future store context from existing catalog/branch APIs or add a real backend endpoint only after proving it is necessary."
     },
 }

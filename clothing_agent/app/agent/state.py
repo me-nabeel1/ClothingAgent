@@ -15,7 +15,15 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.agent.contracts import ToolName
+from .contracts import ToolName
+
+
+class LanguageMode(StrEnum):
+    """Supported V1 response modes for English and Urdu conversations."""
+
+    ENGLISH = "english"
+    URDU_SCRIPT = "urdu_script"
+    ROMAN_URDU = "roman_urdu"
 
 
 class CustomerPreferences(BaseModel):
@@ -133,7 +141,7 @@ class PlannedAction(BaseModel):
     tool_name: ToolName
     parameters: dict[str, Any] = Field(default_factory=dict)
     dependency_ids: list[str] = Field(default_factory=list)
-    status: str = ActionStatus.PENDING
+    status: ActionStatus = ActionStatus.PENDING
     missing_parameters: list[str] = Field(default_factory=list)
     result_reference: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -175,7 +183,7 @@ class ConversationState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     session_id: UUID = Field(default_factory=uuid4)
-    language: str | None = None
+    language: LanguageMode | None = None
     preferences: CustomerPreferences = Field(default_factory=CustomerPreferences)
     current_search: SearchContext = Field(default_factory=SearchContext)
     displayed_products: list[DisplayedProductReference] = Field(default_factory=list)
@@ -186,13 +194,32 @@ class ConversationState(BaseModel):
     pending_action_id: str | None = None
     last_tool_results: dict[str, Any] = Field(default_factory=dict)
 
-    def set_language(self, language: str) -> None:
-        """Set the conversation language using the normalized V1 values."""
+    def set_language(self, language: str | LanguageMode) -> None:
+        """Set the normalized V1 language mode used for response generation.
+
+        ``urdu`` is accepted as a compatibility alias for Urdu-script mode.
+        Roman Urdu is kept distinct so response formatting can preserve the
+        customer's conversational script rather than drifting into Hindi.
+        """
+
+        if isinstance(language, LanguageMode):
+            self.language = language
+            return
 
         normalized = language.strip().lower()
-        if normalized not in {"english", "urdu"}:
-            raise ValueError("language must be 'english' or 'urdu'")
-        self.language = normalized
+        aliases = {
+            "english": LanguageMode.ENGLISH,
+            "urdu": LanguageMode.URDU_SCRIPT,
+            "urdu_script": LanguageMode.URDU_SCRIPT,
+            "roman_urdu": LanguageMode.ROMAN_URDU,
+            "roman urdu": LanguageMode.ROMAN_URDU,
+        }
+        try:
+            self.language = aliases[normalized]
+        except KeyError as exc:
+            raise ValueError(
+                "language must be english, urdu_script, or roman_urdu"
+            ) from exc
 
     def remember_displayed_products(self, products: list[DisplayedProductReference]) -> None:
         """Replace display references with the latest ordered result set."""
