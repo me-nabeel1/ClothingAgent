@@ -63,13 +63,15 @@ def format_product_listing_schema(
     opt_idx = 1
 
     for cat_name, items in grouped_products.items():
+        clean_cat = cat_name.strip().replace("_", " ").replace("-", " ")
+        clean_cat = " ".join(clean_cat.split())
         if user_lang == "ur":
-            header_title = translate_category_to_urdu(cat_name)
+            header_title = translate_category_to_urdu(clean_cat)
         else:
-            header_title = cat_name.strip().title()
+            header_title = clean_cat.title()
 
         lines.append(f"\n---- {header_title} ----")
-        for p in items:
+        for p in items[:3]:
             price_int = int(float(p.final_price)) if p.final_price is not None else 0
             lines.append(f"{opt_idx} {p.product_name} - {price_int} {currency}.")
             opt_idx += 1
