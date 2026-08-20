@@ -98,6 +98,13 @@ class IntentExtractor:
         """Parse user input into an IntentPlan using store vocabulary."""
         from app.llm.prompts import SYSTEM_PROMPT_ROUTING
         
+        displayed_summary = []
+        for idx, p in enumerate(state.displayed_products, 1):
+            colors_str = ", ".join(p.available_colors) if getattr(p, "available_colors", None) else "Any"
+            sizes_str = ", ".join(p.available_sizes) if getattr(p, "available_sizes", None) else "Any"
+            displayed_summary.append(f"Option {idx}: {p.product_name} (ID: {p.product_id}, Colors: [{colors_str}], Sizes: [{sizes_str}])")
+        displayed_str = "\n".join(displayed_summary) if displayed_summary else "None"
+
         system_instruction = (
             f"{SYSTEM_PROMPT_ROUTING}\n\n"
             f"You are a routing and extraction engine for {context.store_name}.\n"
@@ -108,7 +115,7 @@ class IntentExtractor:
             f"- Categories: {state.categories}\n"
             f"- Occasions: {state.occasions}\n"
             f"- Colors: {state.preferred_colors}\n"
-            f"- Last Displayed Products: {[p.product_name for p in state.displayed_products]}\n\n"
+            f"- Last Displayed Products (Numbered):\n{displayed_str}\n\n"
             "Available Vocabulary (Must match EXACTLY if used):\n"
             f"Categories: {context.categories}\n"
             f"Product Types: {context.product_types}\n"

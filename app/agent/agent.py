@@ -115,6 +115,33 @@ class SingleAgent:
                     if sizes_extracted:
                         step.intent.search_overrides.sizes = sizes_extracted
 
+        # 2c. Option Index & Cart Intent Sanitizer: If displayed_products exist and user requested adding option N to cart/bag/card
+        if state.displayed_products:
+            cart_keywords = ["cart", "bag", "card", "kart", "kard", "بیگ", "کارڈ", "ٹوکری", "ڈال", "رکھ", "اضافہ", "add"]
+            msg_lower = user_message.lower()
+            is_cart_mention = any(k in msg_lower for k in cart_keywords)
+            
+            opt_num = None
+            num_match = re.search(r'\b(?:option|opt|number|item|wala|پہلا|دوسرا|تیسرا|چوتھا|فرسٹ|سیکنڈ|تھرڈ|1st|2nd|3rd|4th)?\s*([1-9])\s*(?:st|nd|rd|th)?\b', msg_lower)
+            if num_match:
+                opt_num = int(num_match.group(1))
+            elif any(w in msg_lower for w in ["first", "1st", "پہلا", "پہلی", "فرسٹ", "pehla"]):
+                opt_num = 1
+            elif any(w in msg_lower for w in ["second", "2nd", "دوسرا", "دوسری", "سیکنڈ", "dusra"]):
+                opt_num = 2
+            elif any(w in msg_lower for w in ["third", "3rd", "تیسرا", "تیسری", "تھرڈ", "teesra"]):
+                opt_num = 3
+            elif any(w in msg_lower for w in ["fourth", "4th", "چوتھا", "چوتھی", "chautha"]):
+                opt_num = 4
+
+            if opt_num and 1 <= opt_num <= len(state.displayed_products) and is_cart_mention:
+                target_pid = state.displayed_products[opt_num - 1].product_id
+                logger.info("option_cart_sanitizer_triggered", extra={"option": opt_num, "product_id": target_pid})
+                state.selected_product_id = target_pid
+                for step in plan.steps:
+                    step.intent.intent = "add_to_cart"
+                    step.intent.selected_product_index = opt_num
+
         # 3. Execute plan sequentially
         step_results = []
         for step in plan.steps:
