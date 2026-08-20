@@ -494,16 +494,19 @@ class ConversationState(BaseModel):
             self.selected_product_id = selected_displayed[0].product_id
 
     def sync_displayed_products_with_reply(self, reply: str) -> None:
-        """Sync displayed_products and product_cards so cards are ONLY displayed during search/discovery turns for products described in reply text. Suppress cards during detail queries, follow-up turns, greetings, general store chat, and variant requests."""
-        if not self.displayed_products or self.current_intent in ["general_chat", "greeting", "general_inquiry", "store_overview", "faq", "general", "clear_preferences", "reset_session", "get_promotions", None]:
+        """Sync displayed_products and product_cards so UI cards match reply prose while preserving displayed_products in state for option indexing."""
+        if self.current_intent in ["general_chat", "greeting", "general_inquiry", "store_overview", "faq", "general", "clear_preferences", "reset_session", "get_promotions"]:
             self.product_cards = []
             self.displayed_products = []
+            return
+
+        if not self.displayed_products:
+            self.product_cards = []
             return
 
         text_lower = (reply or "").lower()
         if any(phrase in text_lower for phrase in ["what style or outfit", "which category or specific look", "elevate your personality", "our current collection includes", "let me know which category"]):
             self.product_cards = []
-            self.displayed_products = []
             return
 
         import re
@@ -552,22 +555,6 @@ class ConversationState(BaseModel):
 
         if matched_products:
             self.displayed_products = matched_products
-
-        matched_ids = {dp.product_id for dp in self.displayed_products}
-
-        # Product cards handling:
-        if self.current_intent in ["show_cart", "remove_cart", "add_to_cart", "get_details"]:
-            # For cart and detail operations, preserve the exact product_cards set by the tool
-            if not self.product_cards and self.displayed_products:
-                self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
-        elif self.current_intent in ["search", "explore_category"] and self.displayed_products:
-            if self.product_cards:
-                if matched_ids:
-                    filtered_cards = [c for c in self.product_cards if c.product.product_id in matched_ids]
-                    if filtered_cards:
-                        self.product_cards = filtered_cards
-            else:
-                self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
-        else:
-            self.product_cards = []
-            self.displayed_products = []
+            self.product_cards = [dp.to_product_card() for dp in matched_products]
+        elif self.displayed_products and not self.product_cards:
+            self.product_cards = [dp.to_product_card() for dp in self.displayed_products]
