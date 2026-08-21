@@ -1,49 +1,15 @@
-# Environments & Secrets
 .venv/
-venv/
-env/
 .env
-.env.local
-.env.*.local
-
-# Temporary files & Scratch directory
-temp/
-tmp/
-scratch/
-*.tmp
-
-# Python bytecode & cache
 __pycache__/
 *.py[cod]
-*$py.class
-
-# Testing & Coverage
 .pytest_cache/
 .coverage
 htmlcov/
-.rspec
-
-# Logs & Database outputs
-logs/
-*.log
-*.sqlite
-*.db
-local/data/
-
-# IDE & Editor Configs
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Node & Frontend Build Assets
 node_modules/
 dist/
-build/
 frontend/.vite/
-frontend/dist/
-
-# Archives & Zips
-*.zip
-*.tar.gz
-*.7z
+logs/
+**/logs/
+*.log

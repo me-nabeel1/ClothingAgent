@@ -1,54 +1,42 @@
 # Development & Testing Guide
 
-## Prerequisites
+## Database Initialization & Seeding
 
-- Python 3.11+
-- Virtual environment (`.venv`) initialized with required dependencies (`requirements.txt`).
-
-## Environment Setup
-
-1. **Activate Virtual Environment**:
-   - **Windows (PowerShell)**:
-     ```powershell
-     .\.venv\Scripts\Activate.ps1
-     ```
-2. **Install Dependencies**:
+1. **Alembic Database Migration**:
    ```powershell
-   pip install -r requirements.txt
+   $env:PYTHONPATH="clothing_app"
+   alembic -c clothing_app/alembic.ini upgrade head
+   ```
+
+2. **Canonical Database Seed Script**:
+   ```powershell
+   $env:PYTHONPATH="clothing_app"
+   python clothing_app/scripts/seed.py
    ```
 
 ---
 
 ## Running Test Suites
 
-### 1. Fitzy Agent Test Suite (Phases 1, 2 & 3)
+### 1. Commerce Backend Test Suite
 ```powershell
+$env:PYTHONPATH="clothing_app"
+pytest clothing_app/tests -q
+```
+*Expected: 7 passed, 1 skipped*
+
+### 2. Fitzy Agent Test Suite (Phases 1 - 4.1)
+```powershell
+$env:PYTHONPATH="clothing_agent"
 pytest clothing_agent/tests -q
 ```
-*Expected output: `23 passed`*
-
-### 2. Backend Domain Test Suite
-```powershell
-pytest tests/ -q
-```
-*Expected output: `3 passed, 1 skipped`*
+*Expected: 30 passed*
 
 ---
 
-## Compilation Checks
+## Running the Unified Application
 
-Verify Python source syntax across the entire codebase:
-
-```powershell
-python -m compileall clothing_agent
-python -m compileall app
-```
-
----
-
-## Launching Local Server
-
-Run the single-port FastAPI unified service locally:
+Launch the single-port FastAPI unified service:
 
 ```powershell
 uvicorn main:app --reload --port 8000

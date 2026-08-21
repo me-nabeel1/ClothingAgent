@@ -19,7 +19,7 @@ The Northstar Commerce Application is a single-port FastAPI microservice that un
 |  | /api/v1/products |  | /api/v1/inventory |  | /api/v1/carts      |  |
 |  +------------------+  +-------------------+  +--------------------+  |
 |  | Orders Domain    |  | Promotions Domain |  | Fitzy Agent        |  |
-|  | /api/v1/orders   |  | /api/v1/promotions|  | /api/v1/chat       |  |
+|  | /api/v1/orders   |  | /api/v1/promotions|  | /api/v1/agent/chat |  |
 |  +------------------+  +-------------------+  +--------------------+  |
 +-----------------------------------------------------------------------+
                                    |
@@ -29,19 +29,18 @@ The Northstar Commerce Application is a single-port FastAPI microservice that un
 +-----------------------------------------------------------------------+
 ```
 
-## Bounded Contexts
+## Hardened Backend Bounded Contexts (`clothing_app/app/`)
 
-The application core (`app/`) is organized into clean domain-driven bounded contexts:
+- **Store Tenancy**: Multi-store tenant foundation with store-scoped unique constraints (`stores`, `store_id`).
+- **Catalog (`app/catalog/`)**: Manages products, categories, variants, colors, sizes, and product images using `size_mapping` and centralized media resolution (`app/common/media.py`).
+- **Inventory (`app/inventory/`)**: Managed via `InventoryRepository` with row locking (`SELECT FOR UPDATE`), stock revalidation during checkout, and TTL reservation holds.
+- **Cart (`app/cart/`)**: Cart creation with optional `session_id` and `store_id`, item quantity updates, session isolation, and reservation conversion.
+- **Orders (`app/orders/`)**: Order placement with idempotency (`checkout_request_id`), transaction boundaries (automatic rollback on error), stock revalidation, and auth/payment provider boundaries.
+- **Promotions (`app/promotions/`)**: Authoritative promotion rule evaluation supporting global store, branch, category, product, and free-delivery discounts across listing, cart, and checkout.
+- **Common (`app/common/`)**: Centralized media URL creation, custom exception handlers, and observability.
 
-- **Catalog (`app/catalog/`)**: Manages products, categories, variants, colors, sizes, and product images.
-- **Inventory (`app/inventory/`)**: Tracks branch-level stock availability and inventory reservations.
-- **Cart (`app/cart/`)**: Handles session-bound shopping cart creation, item additions, quantity updates, and cart preview/totals.
-- **Orders (`app/orders/`)**: Handles order placement, validation, status tracking, and order persistence.
-- **Promotions (`app/promotions/`)**: Evaluates promotional discounts, offers, and storewide deals.
-- **Common (`app/common/`)**: Shared enums, exceptions, logging observability, and attribute normalizers (`helpers.py`).
+## Agent Package (`clothing_agent/app/`)
 
-## Architectural Boundaries
-
-1. **Isolation**: Commerce domain services interact through clear interfaces and database repositories without cross-domain leakages.
-2. **Agent Separation**: The Fitzy agent implementation resides in a standalone package (`clothing_agent/`), consuming commerce capabilities strictly via the integration HTTP adapter (`clothing_agent/app/integration/`).
-3. **Database Ownership**: All persistence logic is encapsulated within SQLAlchemy repository classes using async sessions (`app/database.py`).
+- **Fitzy Agent Core**: Conversational intent extraction, requirements validation, action planning, tool execution, and response generation with language safety.
+- **Persistent State Store (`FileConversationStateStore`)**: Atomic file-backed persistence for `ConversationState` surviving process restarts.
+- **Integration Boundary (`app/integration/`)**: Translates high-level semantic tools into HTTP requests against `/api/v1/*` REST APIs.
