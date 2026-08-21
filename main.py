@@ -78,12 +78,17 @@ app.add_middleware(
 # ------------------------------------------------------------------
 # Consolidated API Endpoints (/api/v1)
 # ------------------------------------------------------------------
+from clothing_agent.app.api.routes import router as agent_router, get_agent
+
+app.include_router(agent_router)                                 # /api/v1/agent/chat (Fitzy Agent)
 app.include_router(chat_router, prefix=config.api_prefix)       # /api/v1/chat (Agent Concierge)
 app.include_router(catalog_router, prefix=config.api_prefix)    # /api/v1/products (Catalog)
 app.include_router(cart_router, prefix=config.api_prefix)       # /api/v1/carts (Cart Management)
 app.include_router(orders_router, prefix=config.api_prefix)     # /api/v1/orders (Checkout & Orders)
 app.include_router(inventory_router, prefix=config.api_prefix)  # /api/v1/inventory (Stock & Branches)
 app.include_router(promotions_router, prefix=config.api_prefix) # /api/v1/promotions (Discounts & Offers)
+
+app.dependency_overrides[get_agent] = lambda: get_container().fitzy_agent
 
 # Backwards compatibility fallback routes (Hidden from Swagger UI)
 from app.catalog.api import get_menu as catalog_get_menu
