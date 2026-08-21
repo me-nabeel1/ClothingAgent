@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.agent.contracts import ToolName
-from app.agent.execution import ActionExecutionCoordinator
-from app.agent.intent import IntentExtraction, IntentRequest, IntentType
-from app.agent.planner import ActionPlanner
-from app.agent.requirements import ToolRequirementChecker
-from app.agent.state import ActionStatus, ConversationState, LanguageMode
+from clothing_agent.app.agent.contracts import ToolName
+from clothing_agent.app.agent.execution import ActionExecutionCoordinator
+from clothing_agent.app.agent.intent import IntentExtraction, IntentRequest, IntentType
+from clothing_agent.app.agent.planner import ActionPlanner
+from clothing_agent.app.agent.requirements import ToolRequirementChecker
+from clothing_agent.app.agent.state import ActionStatus, ConversationState, LanguageMode
 
 
 def test_search_and_add_to_cart_are_dependency_ordered() -> None:
@@ -77,7 +77,7 @@ def test_language_modes_distinguish_english_urdu_script_and_roman_urdu() -> None
 
 
 def test_order_requires_explicit_confirmation() -> None:
-    from app.agent.contracts import PLACE_ORDER
+    from clothing_agent.app.agent.contracts import PLACE_ORDER
 
     result = ToolRequirementChecker().check(
         PLACE_ORDER,

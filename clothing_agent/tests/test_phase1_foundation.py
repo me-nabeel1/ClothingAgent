@@ -4,13 +4,13 @@ from decimal import Decimal
 
 import pytest
 
-from app.agent.contracts import (
+from clothing_agent.app.agent.contracts import (
     ADD_TO_CART,
     PLACE_ORDER,
     ToolName,
 )
-from app.agent.requirements import ToolRequirementChecker
-from app.agent.state import ActionStatus, ConversationState
+from clothing_agent.app.agent.requirements import ToolRequirementChecker
+from clothing_agent.app.agent.state import ActionStatus, ConversationState
 
 
 def test_add_to_cart_requires_only_execution_critical_parameters() -> None:
@@ -103,7 +103,7 @@ def test_action_plan_ready_actions_respect_dependencies() -> None:
     first = state.action_plan.actions
     del search[:]
 
-    from app.agent.state import PlannedAction
+    from clothing_agent.app.agent.state import PlannedAction
 
     a = PlannedAction(tool_name=ToolName.GET_PRODUCTS, status=ActionStatus.COMPLETED)
     b = PlannedAction(tool_name=ToolName.GET_PRODUCT_DETAILS, dependency_ids=[a.action_id])

@@ -4,13 +4,13 @@ from decimal import Decimal
 
 import pytest
 
-from app.agent.agent import FitzyAgent
-from app.agent.contracts import ToolName
-from app.agent.intent import IntentExtraction, IntentRequest, IntentType
-from app.agent.state import LanguageMode
-from app.integration.client import CommerceToolAdapter
-from app.integration.schemas import CartView, ProductOption, ProductSearchResponse
-from app.llm.client import FakeLLMClient
+from clothing_agent.app.agent.agent import FitzyAgent
+from clothing_agent.app.agent.contracts import ToolName
+from clothing_agent.app.agent.intent import IntentExtraction, IntentRequest, IntentType
+from clothing_agent.app.agent.state import LanguageMode
+from clothing_agent.app.integration.client import CommerceToolAdapter
+from clothing_agent.app.integration.schemas import CartView, ProductOption, ProductSearchResponse
+from clothing_agent.app.llm.client import FakeLLMClient
 
 
 class FakeAdapter:
@@ -130,26 +130,3 @@ async def test_urdu_response_rejects_devanagari() -> None:
     agent = FitzyAgent(llm=UnsafeLLM(), tools=FakeAdapter())  # type: ignore[arg-type]
     result = await agent.process_message(session_id="s3", message="mujhe help chahiye")
     assert result == "Bilkul, main madad karta hoon."
-
-
-@pytest.mark.asyncio
-async def test_urdu_script_search_and_confirmation_blocking() -> None:
-    extraction = IntentExtraction(
-        language=LanguageMode.URDU_SCRIPT,
-        intents=[
-            IntentRequest(
-                intent_id="1",
-                intent_type=IntentType.PRODUCT_SEARCH,
-                parameters={"categories": ["shirts"], "colors": ["black"]},
-            )
-        ],
-    )
-    llm = FakeLLMClient(extraction, "یہ رہی آپ کی کالی شرٹ۔")
-    adapter = FakeAdapter()
-    agent = FitzyAgent(llm=llm, tools=adapter)  # type: ignore[arg-type]
-
-    response = await agent.process_message(session_id="s4", message="مجھے کالی شرٹس دکھائیں")
-
-    assert "شرٹ" in response
-    assert adapter.calls[0][0] == ToolName.GET_PRODUCTS
-

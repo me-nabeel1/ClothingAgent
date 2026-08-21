@@ -1,15 +1,5 @@
-# Fitzy Phase 4 Runtime
+# Fitzy Phase 4.1 Runtime Hardening
 
-Authored runtime layer for the single-agent V1.
+Apply on top of the existing `agent-fix` Phase 4 runtime.
 
-Adds:
-
-- OpenAI-compatible provider abstraction
-- centralized bilingual prompts
-- language-safe response generation
-- single `FitzyAgent` runtime orchestrator
-- thin semantic AgentTools facade
-- `/api/v1/agent/chat` route
-- runtime tests
-
-This phase does not change the Northstar commerce backend.
+This patch fixes runtime continuity and state-resolution gaps without changing `clothing_app` or the existing commerce API surface.

@@ -53,8 +53,11 @@ class FitzyAgent:
         state.set_language(extraction.language)
         logger.info("intent.extracted session=%s language=%s intents=%s", session_id, extraction.language, [i.intent_type.value for i in extraction.intents])
 
+        waiting_actions = [action.model_copy(deep=True) for action in state.action_plan.actions if action.status == ActionStatus.WAITING_FOR_INPUT]
         self._apply_intent_to_state(extraction, state)
+        self._reopen_waiting_actions_for_new_input(state)
         plan = self._planner.build_plan(extraction, state)
+        self._merge_waiting_actions(plan, waiting_actions)
         state.action_plan = plan
         logger.info("plan.created session=%s plan=%s actions=%s", session_id, plan.plan_id, [(a.action_id, a.tool_name.value, a.dependency_ids) for a in plan.actions])
 
@@ -78,15 +81,24 @@ class FitzyAgent:
         )
 
     def _apply_intent_to_state(self, extraction: IntentExtraction, state: ConversationState) -> None:
-        """Persist customer preferences and temporary search information without conflating them."""
+        """Persist turn facts into the correct long-lived or action-scoped state.
+
+        Delivery information is accumulated across turns, explicit order
+        confirmation is retained for the current execution cycle, and search
+        filters update the current search without erasing unrelated preferences.
+        """
 
         for intent in extraction.intents:
+            params = intent.parameters
+
+            self._apply_delivery_fields(params, state)
+
+            if intent.explicit_confirmation is not None and intent.intent_type == IntentType.PLACE_ORDER:
+                state.last_tool_results["explicit_confirmation"] = intent.explicit_confirmation
+
             if intent.intent_type != IntentType.PRODUCT_SEARCH:
-                if intent.explicit_confirmation is not None and intent.intent_type == IntentType.PLACE_ORDER:
-                    state.last_tool_results["explicit_confirmation"] = intent.explicit_confirmation
                 continue
 
-            params = intent.parameters
             state.current_search.update_from_mapping({
                 key: value
                 for key, value in params.items()
@@ -126,6 +138,52 @@ class FitzyAgent:
                     }
                     setattr(state.preferences, mapping[field_name], value)
 
+    @staticmethod
+    def _apply_delivery_fields(params: dict[str, Any], state: ConversationState) -> None:
+        """Merge explicitly extracted delivery fields into conversation state."""
+
+        field_names = (
+            "customer_name",
+            "phone",
+            "delivery_address",
+            "city",
+            "delivery_notes",
+        )
+        for field_name in field_names:
+            value = params.get(field_name)
+            if value in (None, ""):
+                continue
+            setattr(state.delivery, field_name, value)
+
+    def _reopen_waiting_actions_for_new_input(self, state: ConversationState) -> None:
+        """Re-evaluate previously blocked actions after the customer supplied new facts.
+
+        A waiting action is not discarded: once the next turn adds missing
+        requirements to state, it becomes eligible for the same execution plan.
+        """
+
+        for action in state.action_plan.actions:
+            if action.status == ActionStatus.WAITING_FOR_INPUT:
+                action.status = ActionStatus.PENDING
+                action.missing_parameters = []
+
+    @staticmethod
+    def _merge_waiting_actions(plan: Any, waiting_actions: list[Any]) -> None:
+        """Carry forward blocked actions so follow-up messages can satisfy them.
+
+        A customer may answer a missing field without repeating the original
+        intent, for example: ``"Lahore"`` after Fitzy asked for a city. The
+        previously blocked action therefore remains part of the active plan.
+        """
+
+        existing_tools = {action.tool_name for action in plan.actions}
+        for waiting in waiting_actions:
+            if waiting.tool_name in existing_tools:
+                continue
+            waiting.status = ActionStatus.PENDING
+            waiting.missing_parameters = []
+            plan.actions.insert(0, waiting)
+
     def _resolve_known_parameters(self, state: ConversationState) -> None:
         """Resolve values already known from state or previous tool results.
 
@@ -157,6 +215,9 @@ class FitzyAgent:
         """Fill action parameters from deterministic conversation state."""
 
         params = action.parameters
+        if action.tool_name == ToolName.GET_PRODUCTS:
+            action.parameters = self._build_effective_product_search(state, action.parameters)
+
         if action.tool_name in {ToolName.GET_CART, ToolName.ADD_TO_CART, ToolName.UPDATE_CART, ToolName.REMOVE_FROM_CART, ToolName.CLEAR_CART, ToolName.PREVIEW_CHECKOUT, ToolName.PLACE_ORDER}:
             if "cart_id" not in params and state.cart.cart_id:
                 params["cart_id"] = str(state.cart.cart_id)
@@ -186,6 +247,44 @@ class FitzyAgent:
                     params.setdefault("branch_id", option.branch_id)
                     params.setdefault("selected_product_id", option.product_id)
             params.setdefault("quantity", 1)
+
+    @staticmethod
+    def _build_effective_product_search(state: ConversationState, turn_parameters: dict[str, Any]) -> dict[str, Any]:
+        """Build one canonical search request from preferences, active search, and turn overrides.
+
+        Precedence is explicit: current-turn values override the active search,
+        active search values override persistent preferences, and empty optional
+        values are ignored. This prevents conversational refinement from dropping
+        earlier constraints such as an occasion or budget.
+        """
+
+        preference_map = {
+            "colors": state.preferences.preferred_colors,
+            "excluded_colors": state.preferences.excluded_colors,
+            "categories": state.preferences.preferred_categories,
+            "product_types": state.preferences.preferred_product_types,
+            "occasions": state.preferences.preferred_occasions,
+            "materials": state.preferences.preferred_materials,
+            "fits": state.preferences.preferred_fits,
+            "size_mapping": state.preferences.size_mapping,
+            "minimum_price": state.preferences.minimum_price,
+            "maximum_price": state.preferences.maximum_price,
+            "branch_code": state.preferences.branch_preference,
+        }
+        active = state.current_search.model_dump(exclude_none=True)
+        effective: dict[str, Any] = {}
+        for key, value in preference_map.items():
+            if value not in (None, [], {}, ""):
+                effective[key] = value
+        for key, value in active.items():
+            if value not in (None, [], {}, ""):
+                effective[key] = value
+        for key, value in turn_parameters.items():
+            if value not in (None, [], {}, ""):
+                effective[key] = value
+        effective.setdefault("in_stock_only", state.current_search.in_stock_only)
+        effective["limit"] = min(int(effective.get("limit", state.current_search.limit)), 20)
+        return effective
 
     @staticmethod
     def _resolve_displayed_product_id(state: ConversationState, reference: Any) -> int | None:
@@ -218,7 +317,27 @@ class FitzyAgent:
         if params.get("size"):
             candidates = [item for item in candidates if (item.size or "").lower() == str(params["size"]).lower()]
         available = [item for item in candidates if item.available_quantity > 0 and item.is_available is not False]
-        return available[0] if len(available) == 1 else None
+        if not available:
+            return None
+
+        preferred_branch = params.get("branch_code") or state.current_search.branch_code or state.preferences.branch_preference
+        if preferred_branch:
+            preferred = [item for item in available if (item.branch_code or "").lower() == str(preferred_branch).lower()]
+            if preferred:
+                available = preferred
+
+        # Branch is an internal fulfillment dimension for ordinary shopping.
+        # When multiple valid branches remain, choose deterministically without
+        # asking the customer to select one. Prefer larger available quantity,
+        # then stable branch code/id ordering.
+        available.sort(key=lambda item: (
+            -int(item.available_quantity),
+            (item.branch_code or "").lower(),
+            int(item.branch_id),
+            int(item.variant_id),
+        ))
+        first = available[0]
+        return first if all(item.variant_id == first.variant_id and item.size == first.size and item.color == first.color for item in available) else first
 
     async def _execute_until_waiting(self, state: ConversationState) -> None:
         """Execute ready actions, refresh deterministic state, and continue dependencies."""
@@ -312,24 +431,36 @@ class FitzyAgent:
         }
 
     def _build_runtime_context(self, state: ConversationState) -> dict[str, Any]:
-        """Build compact response context from state and authoritative tool results."""
+        """Build compact response context focused on the current execution cycle."""
 
-        results: dict[str, Any] = {}
-        for key, value in state.last_tool_results.items():
-            if hasattr(value, "model_dump"):
-                results[key] = value.model_dump(mode="json")
-            else:
-                results[key] = value
+        relevant: dict[str, Any] = {}
+        completed_tools = []
+        for action in reversed(state.action_plan.actions):
+            if action.status != ActionStatus.COMPLETED:
+                continue
+            tool_key = action.tool_name.value
+            if tool_key in completed_tools:
+                continue
+            if tool_key in state.last_tool_results:
+                value = state.last_tool_results[tool_key]
+                relevant[tool_key] = value.model_dump(mode="json") if hasattr(value, "model_dump") else value
+                completed_tools.append(tool_key)
 
         return {
             "language": state.language.value if state.language else None,
             "preferences": state.preferences.model_dump(mode="json"),
             "current_search": state.current_search.model_dump(mode="json"),
             "displayed_products": [item.model_dump(mode="json") for item in state.displayed_products],
+            "selected_product_id": state.selected_product_id,
             "delivery": state.delivery.model_dump(mode="json"),
             "cart": state.cart.model_dump(mode="json"),
             "pending_action_id": state.pending_action_id,
-            "tool_results": results,
+            "pending_action": (
+                state.action_plan.get(state.pending_action_id).model_dump(mode="json")
+                if state.pending_action_id and state.action_plan.get(state.pending_action_id)
+                else None
+            ),
+            "current_tool_results": relevant,
         }
 
     async def close(self) -> None:

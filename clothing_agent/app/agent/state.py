@@ -240,3 +240,19 @@ class ConversationState(BaseModel):
         """Store the latest normalized result for runtime continuity and diagnostics."""
 
         self.last_tool_results[tool_name.value] = result
+
+    def set_delivery_field(self, field_name: str, value: Any) -> None:
+        """Set one known delivery field without allowing arbitrary state mutation."""
+
+        if field_name not in type(self.delivery).model_fields:
+            raise ValueError(f"Unknown delivery field: {field_name}")
+        if value not in (None, ""):
+            setattr(self.delivery, field_name, value)
+
+    def has_complete_delivery_details(self) -> bool:
+        """Return whether all required anonymous delivery fields are present."""
+
+        return all(
+            getattr(self.delivery, field_name) not in (None, "")
+            for field_name in ("customer_name", "phone", "delivery_address", "city")
+        )

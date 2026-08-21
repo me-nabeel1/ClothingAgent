@@ -1,5 +1,11 @@
-"""Pytest configuration for clothing_agent package.
+import sys
+from pathlib import Path
 
-Placing conftest.py at clothing_agent/ root ensures pytest adds clothing_agent/
-to sys.path so 'app.agent...' absolute imports resolve automatically.
-"""
+root_dir = Path(__file__).resolve().parent.parent
+clothing_agent_dir = Path(__file__).resolve().parent
+
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+if str(clothing_agent_dir) not in sys.path:
+    sys.path.insert(0, str(clothing_agent_dir))
+

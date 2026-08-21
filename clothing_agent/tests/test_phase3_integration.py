@@ -7,10 +7,10 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from app.agent.contracts import ToolName
-from app.integration.client import CommerceAPIClient, CommerceToolAdapter
-from app.integration.http import AsyncJSONTransport
-from app.integration.schemas import ProductSearchRequest
+from clothing_agent.app.agent.contracts import ToolName
+from clothing_agent.app.integration.client import CommerceAPIClient, CommerceToolAdapter
+from clothing_agent.app.integration.http import AsyncJSONTransport
+from clothing_agent.app.integration.schemas import ProductSearchRequest
 
 
 @pytest.fixture
