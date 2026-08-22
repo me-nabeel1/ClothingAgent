@@ -34,7 +34,7 @@ class AppConfig(BaseSettings):
 
     cart_ttl_hours: int = Field(default=24, gt=0, le=168)
     store_id: str = "northstar"
-    product_images_dir: Path = Path("local/product_images")
+    product_images_dir: Path = Path("tools/data/product_images")
 
 
 @lru_cache

@@ -2,7 +2,7 @@
 from typing import Any
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.catalog.models import Product, ProductVariant, Branch
+from app.catalog.models import Product, ProductVariant, Branch, Color, Size
 from app.inventory.models import BranchInventory
 from app.config import get_config
 
@@ -27,12 +27,16 @@ class InventoryRepository:
                 Branch.branch_name,
                 Product.article_code,
                 Product.product_name,
+                Color.color_name.label("color"),
+                Size.size_label.label("size"),
                 ProductVariant.selling_price.label("price"),
                 available.label("available_quantity"),
                 BranchInventory.in_transit_quantity,
             )
             .select_from(ProductVariant)
             .join(Product, Product.product_id == ProductVariant.product_id)
+            .join(Color, Color.color_id == ProductVariant.color_id)
+            .join(Size, Size.size_id == ProductVariant.size_id)
             .join(BranchInventory, BranchInventory.variant_id == ProductVariant.variant_id)
             .join(Branch, Branch.branch_id == BranchInventory.branch_id)
             .where(

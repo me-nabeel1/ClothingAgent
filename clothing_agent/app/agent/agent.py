@@ -72,13 +72,29 @@ class FitzyAgent:
         )
 
     async def _extract_intent(self, message: str) -> IntentExtraction:
-        """Use the LLM only for semantic intent extraction."""
+        """Use the LLM for semantic intent extraction with heuristic fallback."""
+        try:
+            return await self._llm.generate_structured(
+                system_prompt=build_intent_system_prompt(),
+                user_message=message,
+                response_model=IntentExtraction,
+            )
+        except Exception as exc:
+            logger.warning("llm.extraction_failed error=%s falling_back_to_heuristic", exc)
+            return self._heuristic_extract_intent(message)
 
-        return await self._llm.generate_structured(
-            system_prompt=build_intent_system_prompt(),
-            user_message=message,
-            response_model=IntentExtraction,
-        )
+    def _heuristic_extract_intent(self, message: str) -> IntentExtraction:
+        msg = message.lower()
+        intents = []
+        if any(w in msg for w in ["search", "find", "shirt", "pant", "kurta", "denim", "dress", "show", "buy", "oxford"]):
+            intents.append(IntentRequest(intent_id="intent-1", intent_type=IntentType.PRODUCT_SEARCH, parameters={"query_text": message}))
+        elif any(w in msg for w in ["cart", "add"]):
+            intents.append(IntentRequest(intent_id="intent-1", intent_type=IntentType.ADD_TO_CART, parameters={}))
+        elif any(w in msg for w in ["checkout", "order", "place"]):
+            intents.append(IntentRequest(intent_id="intent-1", intent_type=IntentType.CHECKOUT, parameters={}))
+        else:
+            intents.append(IntentRequest(intent_id="intent-1", intent_type=IntentType.GENERAL_CONVERSATION, parameters={"query": message}))
+        return IntentExtraction(language=LanguageMode.ENGLISH, intents=intents)
 
     def _apply_intent_to_state(self, extraction: IntentExtraction, state: ConversationState) -> None:
         """Persist turn facts into the correct long-lived or action-scoped state.
@@ -93,8 +109,20 @@ class FitzyAgent:
 
             self._apply_delivery_fields(params, state)
 
+            if intent.intent_type in {
+                IntentType.ADD_TO_CART,
+                IntentType.UPDATE_CART,
+                IntentType.REMOVE_FROM_CART,
+                IntentType.CLEAR_CART,
+            }:
+                state.last_tool_results["explicit_confirmation"] = None
+                state.last_tool_results.pop(ToolName.PREVIEW_CHECKOUT.value, None)
+
             if intent.explicit_confirmation is not None and intent.intent_type == IntentType.PLACE_ORDER:
-                state.last_tool_results["explicit_confirmation"] = intent.explicit_confirmation
+                if ToolName.PREVIEW_CHECKOUT.value in state.last_tool_results:
+                    state.last_tool_results["explicit_confirmation"] = intent.explicit_confirmation
+                else:
+                    state.last_tool_results["explicit_confirmation"] = None
 
             if intent.intent_type != IntentType.PRODUCT_SEARCH:
                 continue
@@ -394,7 +422,11 @@ class FitzyAgent:
                 )
                 index += 1
             state.remember_displayed_products(references)
-        elif action.tool_name in {ToolName.CREATE_CART, ToolName.GET_CART, ToolName.ADD_TO_CART}:
+        elif action.tool_name in {ToolName.ADD_TO_CART, ToolName.UPDATE_CART, ToolName.REMOVE_FROM_CART, ToolName.CLEAR_CART}:
+            state.last_tool_results["explicit_confirmation"] = None
+            state.last_tool_results.pop(ToolName.PREVIEW_CHECKOUT.value, None)
+            self._apply_cart_result(state, result)
+        elif action.tool_name in {ToolName.CREATE_CART, ToolName.GET_CART}:
             self._apply_cart_result(state, result)
 
     @staticmethod

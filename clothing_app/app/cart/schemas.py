@@ -72,3 +72,4 @@ class StoreOrderPreview(BaseModel):
     applied_offer_code: str | None = None
     applied_offer_codes: list[str] = Field(default_factory=list)
     free_delivery: bool = False
+    confirmation_token: UUID | None = None

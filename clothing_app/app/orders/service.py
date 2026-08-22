@@ -26,6 +26,8 @@ class OrderService:
         cart = await self._cart_repo.require(request.cart_id, for_update=True)
         if not cart.items:
             raise ConflictError("Cannot place an order with an empty cart.", code="CART_EMPTY")
+        if not cart.confirmation_token:
+            raise ConflictError("Pending order confirmation is invalid or expired due to cart mutation. A new checkout preview is required.", code="CONFIRMATION_INVALID")
 
         preview = await self._cart_service.preview(request.cart_id, PreviewCartRequest(offer_code=request.offer_code))
         order = await self._repository.create_order_from_cart(cart, preview, request)

@@ -54,3 +54,50 @@ async def test_waiting_action_reopens_on_new_turn():
     agent._reopen_waiting_actions_for_new_input(state)
     assert pending.status == ActionStatus.PENDING
     assert pending.missing_parameters == []
+
+
+@pytest.mark.asyncio
+async def test_variant_resolution_from_latest_search():
+    agent = object.__new__(FitzyAgent)
+    state = ConversationState()
+
+    from clothing_agent.app.integration.schemas import ProductSearchResponse, ProductOption
+    from clothing_agent.app.agent.state import DisplayedProductReference
+
+    p1 = ProductOption(
+        product_id=1, variant_id=101, branch_id=1, article_code="NS-SH-001",
+        product_name="Oxford Shirt", category="shirts", color="Black", size="M",
+        price=Decimal("4500.00"), branch_code="ISB-F7", branch_name="F7", city="Islamabad", available_quantity=5,
+    )
+    p2 = ProductOption(
+        product_id=1, variant_id=102, branch_id=1, article_code="NS-SH-001",
+        product_name="Oxford Shirt", category="shirts", color="Black", size="L",
+        price=Decimal("4500.00"), branch_code="ISB-F7", branch_name="F7", city="Islamabad", available_quantity=8,
+    )
+    state.last_tool_results[ToolName.GET_PRODUCTS.value] = ProductSearchResponse(products=[p1, p2], result_count=2)
+    state.displayed_products = [DisplayedProductReference(index=1, product_id=1, product_name="Oxford Shirt")]
+
+    resolved = agent._resolve_variant_from_latest_search(state, 1, {"color": "Black", "size": "L"})
+    assert resolved is not None
+    assert resolved.variant_id == 102
+    assert resolved.size == "L"
+
+
+@pytest.mark.asyncio
+async def test_agent_checkout_confirmation_invalidation_on_cart_mutation():
+    agent = object.__new__(FitzyAgent)
+    state = ConversationState()
+
+    state.last_tool_results[ToolName.PREVIEW_CHECKOUT.value] = {"cart_id": "cart-123", "grand_total": 5000}
+    state.last_tool_results["explicit_confirmation"] = True
+
+    # Extracted intent for cart addition
+    extraction = IntentExtraction(
+        language=LanguageMode.ENGLISH,
+        intents=[IntentRequest(intent_id="add", intent_type=IntentType.ADD_TO_CART, parameters={"variant_id": 10})],
+    )
+    agent._apply_intent_to_state(extraction, state)
+
+    assert state.last_tool_results.get("explicit_confirmation") is None
+    assert ToolName.PREVIEW_CHECKOUT.value not in state.last_tool_results
+

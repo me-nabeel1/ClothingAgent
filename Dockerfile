@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python-base AS clothing-app
 COPY clothing_app ./clothing_app
-COPY local ./local
+COPY tools ./tools
 EXPOSE 8100
 CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "clothing_app", "--host", "0.0.0.0", "--port", "8100"]
 

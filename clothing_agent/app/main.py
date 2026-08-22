@@ -47,10 +47,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+from app.api.routes import router as agent_router, get_agent
+
+app.include_router(agent_router)
 app.include_router(conversation_router, prefix=config.api_prefix)
-
-
 app.include_router(health_router)
+
+app.dependency_overrides[get_agent] = lambda: get_container().fitzy_agent
 
 app.middleware("http")(trace_request)
 app.exception_handler(AgentError)(handle_agent_error)

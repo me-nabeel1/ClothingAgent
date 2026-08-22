@@ -20,7 +20,7 @@ class CartRepository:
         cart = Cart(cart_id=uuid4(), session_id=session_id, store_id=store_id, expires_at=expires_at)
         self._db.add(cart)
         await self._db.flush()
-        return cart
+        return await self.require(cart.cart_id)
 
     async def get_by_session(self, session_id: str, store_id: str) -> Cart | None:
         """Return the active cart for a session and store."""

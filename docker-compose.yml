@@ -37,12 +37,12 @@ services:
       CLOTHING_APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ClothingAppDummyDB}
       CLOTHING_APP_DATABASE_POOL_SIZE: ${CLOTHING_APP_DATABASE_POOL_SIZE:-5}
       CLOTHING_APP_DATABASE_MAX_OVERFLOW: ${CLOTHING_APP_DATABASE_MAX_OVERFLOW:-5}
-      CLOTHING_APP_PRODUCT_IMAGES_DIR: /app/local/product_images
+      CLOTHING_APP_PRODUCT_IMAGES_DIR: /app/tools/data/product_images
       CLOTHING_APP_FRONTEND_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8080}
       CLOTHING_APP_LOG_DIR: /app/logs
       CLOTHING_APP_STORE_ID: ${CLOTHING_APP_STORE_ID:-northstar}
     volumes:
-      - ./local/product_images:/app/local/product_images:ro
+      - ./tools/data/product_images:/app/tools/data/product_images:ro
       - clothing_logs:/app/logs
     depends_on:
       db-init:

@@ -54,7 +54,10 @@ class ReservationService:
         await self._db.flush()
 
     async def reserve(self, cart_id: UUID, variant_id: int, branch_id: int, quantity: int, expires_at: datetime) -> None:
-        """Increase the branch inventory hold for one cart item."""
+        """Set the branch inventory hold for one cart item, validating the total resulting reservation.
+
+        Invariant: new_reserved_total <= available_quantity. Internal calculation handles existing holds.
+        """
         await self.release_expired()
         result = await self._db.execute(
             select(BranchInventory).where(
@@ -71,23 +74,28 @@ class ReservationService:
                 InventoryReservation.cart_id == cart_id,
                 InventoryReservation.variant_id == variant_id,
                 InventoryReservation.branch_id == branch_id,
-                InventoryReservation.status == "ACTIVE",
             ).with_for_update()
         )
         existing = existing_result.scalars().first()
-        additional = quantity
-        if existing:
-            additional += existing.quantity
+        existing_qty = existing.quantity if (existing and existing.status == "ACTIVE") else 0
 
-        available = inventory.quantity_on_hand - inventory.reserved_quantity - inventory.damaged_quantity
-        if available < quantity:
+        # Calculate available quantity excluding this cart's existing reservation hold
+        available_unreserved = (inventory.quantity_on_hand - inventory.reserved_quantity - inventory.damaged_quantity) + existing_qty
+
+        if quantity > available_unreserved:
             raise ConflictError("The requested quantity is no longer available.", code="OUT_OF_STOCK")
 
-        inventory.reserved_quantity += quantity
+        delta = quantity - existing_qty
+        inventory.reserved_quantity += delta
+
         if existing:
-            existing.quantity = additional
-            existing.expires_at = expires_at
-        else:
+            if quantity > 0:
+                existing.quantity = quantity
+                existing.expires_at = expires_at
+                existing.status = "ACTIVE"
+            else:
+                existing.status = "RELEASED"
+        elif quantity > 0:
             self._db.add(InventoryReservation(
                 reservation_id=uuid4(), cart_id=cart_id, variant_id=variant_id,
                 branch_id=branch_id, quantity=quantity, expires_at=expires_at, status="ACTIVE",

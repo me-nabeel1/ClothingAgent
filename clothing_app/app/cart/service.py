@@ -43,13 +43,13 @@ class CartService:
 
     async def add(self, cart_id: UUID, request: AddCartItemRequest) -> CartView:
         cart = await self._repository.require(cart_id, for_update=True)
+        cart.confirmation_token = None
         snapshot = await self._inventory.variant_snapshot(request.variant_id, request.branch_id)
         current_quantity = sum(
             item.quantity for item in cart.items
             if item.variant_id == request.variant_id and item.branch_id == request.branch_id
         )
         total_quantity = current_quantity + request.quantity
-        await self._reservations.release_for_item(cart_id, request.variant_id, request.branch_id)
         await self._reservations.reserve(
             cart_id, request.variant_id, request.branch_id, total_quantity, cart.expires_at
         )
@@ -60,18 +60,21 @@ class CartService:
 
     async def update(self, cart_id: UUID, item_id: UUID, quantity: int) -> CartView:
         cart = await self._repository.require(cart_id, for_update=True)
+        cart.confirmation_token = None
         item = next((i for i in cart.items if i.item_id == item_id), None)
         if not item:
             raise ConflictError("Item not found.", code="CART_ITEM_NOT_FOUND")
-        await self._reservations.release_for_item(cart_id, item.variant_id, item.branch_id)
         if quantity > 0:
             await self._reservations.reserve(
                 cart_id, item.variant_id, item.branch_id, quantity, cart.expires_at
             )
+        else:
+            await self._reservations.release_for_item(cart_id, item.variant_id, item.branch_id)
         return await self._to_view(await self._repository.update_quantity(cart_id, item_id, quantity))
 
     async def remove(self, cart_id: UUID, item_id: UUID) -> CartView:
         cart = await self._repository.require(cart_id, for_update=True)
+        cart.confirmation_token = None
         item = next((i for i in cart.items if i.item_id == item_id), None)
         if not item:
             raise ConflictError("Cart item not found.", code="CART_ITEM_NOT_FOUND")
@@ -79,13 +82,17 @@ class CartService:
         return await self._to_view(await self._repository.remove_item(cart_id, item_id))
 
     async def clear(self, cart_id: UUID) -> CartView:
+        cart = await self._repository.require(cart_id, for_update=True)
+        cart.confirmation_token = None
         await self._reservations.release_for_cart(cart_id)
         return await self._to_view(await self._repository.clear(cart_id))
 
     async def preview(self, cart_id: UUID, request: PreviewCartRequest) -> StoreOrderPreview:
-        """Re-read the cart and calculate authoritative offers and delivery."""
+        """Re-read the cart and calculate authoritative offers and delivery, creating a new confirmation token."""
         await self._reservations.release_expired()
-        cart = await self._repository.require(cart_id)
+        cart = await self._repository.require(cart_id, for_update=True)
+        confirmation_token = uuid4()
+        cart.confirmation_token = confirmation_token
         view = await self._to_view(cart)
         evaluation = await self._promotions.evaluate_cart(view.subtotal, view.items, request.offer_code)
         delivery_fee = Decimal("0.00") if evaluation.free_delivery else self._delivery_fee(view.subtotal)
@@ -102,6 +109,7 @@ class CartService:
             applied_offer_code=codes[0] if codes else None,
             applied_offer_codes=codes,
             free_delivery=evaluation.free_delivery,
+            confirmation_token=confirmation_token,
         )
 
     @staticmethod
