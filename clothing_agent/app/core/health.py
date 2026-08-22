@@ -2,9 +2,9 @@
 
 import logging
 
-from app.core.config import get_config
-from app.core.container import get_container
-from app.core.errors import AgentError
+from .config import get_config
+from .container import get_container
+from .errors import AgentError
 from fastapi import APIRouter, HTTPException
 
 logger = logging.getLogger(__name__)

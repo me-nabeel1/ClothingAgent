@@ -2,8 +2,8 @@
 
 import logging
 from typing import Optional
-from app.clients.clothing_app.client import ClothingAppClient
-from app.clients.clothing_app.schemas import StoreContext
+from ..clients.clothing_app.client import ClothingAppClient
+from ..clients.clothing_app.schemas import StoreContext
 
 logger = logging.getLogger(__name__)
 

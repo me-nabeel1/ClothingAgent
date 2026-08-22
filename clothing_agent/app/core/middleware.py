@@ -4,7 +4,7 @@ import logging
 from time import perf_counter
 from uuid import uuid4
 
-from app.core.observability import (
+from .observability import (
     reset_request_id,
     set_request_id,
 )

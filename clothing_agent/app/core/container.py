@@ -5,11 +5,11 @@ from __future__ import annotations
 from functools import lru_cache
 
 import httpx
-from app.core.config import AgentConfig, get_config
-from app.llm.client import OpenAICompatibleLLMClient
-from app.agent.agent import FitzyAgent
-from app.integration.client import CommerceAPIClient, CommerceToolAdapter
-from app.integration.http import AsyncJSONTransport
+from .config import AgentConfig, get_config
+from ..llm.client import OpenAICompatibleLLMClient
+from ..agent.agent import FitzyAgent
+from ..integration.client import CommerceAPIClient, CommerceToolAdapter
+from ..integration.http import AsyncJSONTransport
 
 
 class AppContainer:

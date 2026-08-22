@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from ..agent.agent import FitzyAgent
 
 router = APIRouter(prefix="/api/v1/agent", tags=["fitzy-agent"])
+chat_router = APIRouter(prefix="/api/v1", tags=["fitzy-agent"])
 
 
 class ChatRequest(BaseModel):
@@ -35,6 +36,7 @@ def get_agent() -> FitzyAgent:
 
 
 @router.post("/chat", response_model=ChatResponse)
+@chat_router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, agent: FitzyAgent = Depends(get_agent)) -> ChatResponse:
     """Process one customer message through the Fitzy runtime."""
 

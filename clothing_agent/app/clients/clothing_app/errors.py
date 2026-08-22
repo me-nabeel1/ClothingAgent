@@ -1,6 +1,6 @@
 """Clothing-application client errors."""
 
-from app.core.errors import DependencyUnavailableError
+from ...core.errors import DependencyUnavailableError
 
 
 class ClothingAppUnavailableError(DependencyUnavailableError):

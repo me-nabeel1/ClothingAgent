@@ -8,16 +8,13 @@ WORKDIR /app
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python-base AS clothing-app
+FROM python-base AS backend
+COPY main.py ./main.py
 COPY clothing_app ./clothing_app
-COPY tools ./tools
-EXPOSE 8100
-CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "clothing_app", "--host", "0.0.0.0", "--port", "8100"]
-
-FROM python-base AS clothing-agent
 COPY clothing_agent ./clothing_agent
+COPY tools ./tools
 EXPOSE 8000
-CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "clothing_agent", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 FROM node:22-alpine AS frontend-build
 WORKDIR /web

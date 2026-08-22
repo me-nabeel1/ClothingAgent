@@ -10,7 +10,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-from app.core.config import AgentConfig
+from .config import AgentConfig
 
 _REQUEST_ID: contextvars.ContextVar[str] = contextvars.ContextVar(
     "clothing_agent_request_id", default="-"

@@ -2,8 +2,8 @@
 
 import logging
 
-from app.core.errors import AgentError
-from app.core.observability import get_request_id
+from .errors import AgentError
+from .observability import get_request_id
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
